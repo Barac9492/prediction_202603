@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import { getPredictionDetail } from "@/lib/db/queries";
 import { SignalCard } from "@/components/signal-card";
