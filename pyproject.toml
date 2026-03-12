@@ -5,19 +5,23 @@ description = "Structured uncertainty management tool for VC decision-making"
 requires-python = ">=3.9"
 dependencies = [
     "anthropic>=0.40.0",
-    "httpx>=0.27.0",
-    "beautifulsoup4>=4.12.0",
-    "newspaper3k>=0.2.8",
-    "click>=8.1.0",
-    "rich>=13.0.0",
-]
+        "httpx>=0.27.0",
+            "beautifulsoup4>=4.12.0",
+                "newspaper3k>=0.2.8",
+                    "click>=8.1.0",
+                        "rich>=13.0.0",
+                            "feedparser>=6.0.0",
+                                "psycopg2-binary>=2.9.0",
+                                ]
 
-[project.scripts]
-signal-tracker = "signal_tracker.cli:main"
+                                [project.scripts]
+                                signal-tracker = "signal_tracker.cli:main"
+                                ingest-news = "signal_tracker.news_ingester:main"
+                                extract-graph = "signal_tracker.graph_extractor:main"
 
-[build-system]
-requires = ["setuptools>=68.0"]
-build-backend = "setuptools.build_meta"
+                                [build-system]
+                                requires = ["setuptools>=68.0"]
+                                build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+                                [tool.setuptools.packages.find]
+                                where = ["src"]
