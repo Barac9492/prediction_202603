@@ -1,0 +1,23 @@
+[project]
+name = "signal-tracker"
+version = "0.1.0"
+description = "Structured uncertainty management tool for VC decision-making"
+requires-python = ">=3.9"
+dependencies = [
+    "anthropic>=0.40.0",
+    "httpx>=0.27.0",
+    "beautifulsoup4>=4.12.0",
+    "newspaper3k>=0.2.8",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+]
+
+[project.scripts]
+signal-tracker = "signal_tracker.cli:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
