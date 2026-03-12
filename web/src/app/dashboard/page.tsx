@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getCalibrationStats } from "@/lib/db/queries";
 import { CalibrationChart } from "@/components/calibration-chart";
 
