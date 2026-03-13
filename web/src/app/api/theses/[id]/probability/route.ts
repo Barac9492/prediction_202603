@@ -5,10 +5,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const thesisId = Number(params.id);
+    const { id } = await params;
+    const thesisId = Number(id);
     if (isNaN(thesisId)) {
       return NextResponse.json({ error: "Invalid thesis id" }, { status: 400 });
     }
