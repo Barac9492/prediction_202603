@@ -56,6 +56,8 @@ export async function createThesis(data: {
   status?: string;
   aiRationale?: string;
   isActive?: boolean;
+  deadline?: Date | null;
+  resolutionCriteria?: string;
 }) {
   const [thesis] = await db.insert(theses).values(data).returning();
   return thesis;
@@ -79,7 +81,11 @@ export async function getThesis(id: number) {
 
 export async function updateThesis(
   id: number,
-  data: Partial<{ title: string; description: string; direction: string; isActive: boolean; status: string; aiRationale: string }>
+  data: Partial<{
+    title: string; description: string; direction: string; isActive: boolean;
+    status: string; aiRationale: string; deadline: Date | null; resolutionCriteria: string;
+    resolutionSource: string; resolvedAt: Date; finalProbability: number; brierScore: number;
+  }>
 ) {
   const [updated] = await db
     .update(theses)

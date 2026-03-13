@@ -11,6 +11,7 @@ const links = [
   { href: "/thesis", label: "Thesis" },
   { href: "/graph", label: "Graph" },
   { href: "/predictions", label: "Predictions" },
+  { href: "/track-record", label: "Track Record" },
 ];
 
 export function Nav() {

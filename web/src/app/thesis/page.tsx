@@ -55,12 +55,16 @@ export default function ThesisPage() {
     direction: "bullish",
     domain: "AI",
     tags: "",
+    deadline: "",
+    resolutionCriteria: "",
   });
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestMsg, setSuggestMsg] = useState("");
   const [thesisExtras, setThesisExtras] = useState<Record<number, ThesisExtra>>({});
   const [resolving, setResolving] = useState<number | null>(null);
+  const [resolvingWith, setResolvingWith] = useState<{ id: number; wasCorrect: boolean } | null>(null);
+  const [resolveSource, setResolveSource] = useState("");
 
   const fetchThesisExtras = async (activeTheses: Thesis[]) => {
     const extras: Record<number, ThesisExtra> = {};
@@ -103,14 +107,19 @@ export default function ThesisPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...form,
+        title: form.title,
+        description: form.description,
+        direction: form.direction,
+        domain: form.domain,
         tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
         isActive: true,
         status: "active",
+        ...(form.deadline && { deadline: form.deadline }),
+        ...(form.resolutionCriteria && { resolutionCriteria: form.resolutionCriteria }),
       }),
     });
     if (res.ok) {
-      setForm({ title: "", description: "", direction: "bullish", domain: "AI", tags: "" });
+      setForm({ title: "", description: "", direction: "bullish", domain: "AI", tags: "", deadline: "", resolutionCriteria: "" });
       setShowForm(false);
       fetchTheses();
     }
@@ -158,14 +167,26 @@ export default function ThesisPage() {
     setSuggesting(false);
   }
 
-  async function handleResolve(id: number, wasCorrect: boolean) {
-    setResolving(id);
+  function startResolve(id: number, wasCorrect: boolean) {
+    setResolvingWith({ id, wasCorrect });
+    setResolveSource("");
+  }
+
+  async function confirmResolve() {
+    if (!resolvingWith) return;
+    setResolving(resolvingWith.id);
     await fetch("/api/theses/resolve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, wasCorrect }),
+      body: JSON.stringify({
+        id: resolvingWith.id,
+        wasCorrect: resolvingWith.wasCorrect,
+        ...(resolveSource && { resolutionSource: resolveSource }),
+      }),
     });
     setResolving(null);
+    setResolvingWith(null);
+    setResolveSource("");
     fetchTheses();
   }
 
@@ -212,6 +233,10 @@ export default function ThesisPage() {
             </select>
             <input value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} placeholder="Domain" className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm w-32" />
             <input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="Tags (comma-separated)" className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm" />
+          </div>
+          <div className="flex gap-3">
+            <input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm" placeholder="Deadline" />
+            <input value={form.resolutionCriteria} onChange={(e) => setForm({ ...form, resolutionCriteria: e.target.value })} placeholder="How will you verify this?" className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm" />
           </div>
           <div className="flex gap-2 justify-end">
             <button type="button" onClick={() => setShowForm(false)} className="px-3 py-1.5 text-sm text-zinc-400 hover:text-white">Cancel</button>
@@ -332,22 +357,51 @@ export default function ThesisPage() {
                     )}
                   </div>
                   <div className="flex flex-col gap-1 shrink-0 mt-1">
-                    <button
-                      onClick={() => handleResolve(t.id, true)}
-                      disabled={resolving === t.id}
-                      className="text-xs px-2 py-1 bg-green-900/50 hover:bg-green-800 text-green-400 rounded transition-colors disabled:opacity-50"
-                    >
-                      {resolving === t.id ? "..." : "Correct"}
-                    </button>
-                    <button
-                      onClick={() => handleResolve(t.id, false)}
-                      disabled={resolving === t.id}
-                      className="text-xs px-2 py-1 bg-red-900/50 hover:bg-red-800 text-red-400 rounded transition-colors disabled:opacity-50"
-                    >
-                      {resolving === t.id ? "..." : "Incorrect"}
-                    </button>
-                    <button onClick={() => handleArchive(t.id)}
-                      className="text-xs text-zinc-600 hover:text-red-400 transition-colors">Archive</button>
+                    {resolvingWith?.id === t.id ? (
+                      <div className="flex flex-col gap-1">
+                        <p className="text-xs text-zinc-400">
+                          {resolvingWith.wasCorrect ? "Marking correct" : "Marking incorrect"}
+                        </p>
+                        <input
+                          value={resolveSource}
+                          onChange={(e) => setResolveSource(e.target.value)}
+                          placeholder="Source URL/note (optional)"
+                          className="text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 w-48"
+                        />
+                        <div className="flex gap-1">
+                          <button
+                            onClick={confirmResolve}
+                            disabled={resolving === t.id}
+                            className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50"
+                          >
+                            {resolving === t.id ? "..." : "Confirm"}
+                          </button>
+                          <button
+                            onClick={() => setResolvingWith(null)}
+                            className="text-xs px-2 py-1 text-zinc-400 hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => startResolve(t.id, true)}
+                          className="text-xs px-2 py-1 bg-green-900/50 hover:bg-green-800 text-green-400 rounded transition-colors"
+                        >
+                          Correct
+                        </button>
+                        <button
+                          onClick={() => startResolve(t.id, false)}
+                          className="text-xs px-2 py-1 bg-red-900/50 hover:bg-red-800 text-red-400 rounded transition-colors"
+                        >
+                          Incorrect
+                        </button>
+                        <button onClick={() => handleArchive(t.id)}
+                          className="text-xs text-zinc-600 hover:text-red-400 transition-colors">Archive</button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

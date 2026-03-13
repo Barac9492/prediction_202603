@@ -8,6 +8,9 @@ import {
   createBacktestRun,
   updateBacktestRun,
 } from "@/lib/db/graph-queries";
+import { db } from "@/lib/db";
+import { thesisProbabilitySnapshots } from "@/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function resolveAction(
@@ -21,11 +24,30 @@ export async function resolveAction(
   revalidatePath("/dashboard");
 }
 
-export async function resolveThesisAction(thesisId: number, wasCorrect: boolean) {
+export async function resolveThesisAction(thesisId: number, wasCorrect: boolean, resolutionSource?: string) {
   const status = wasCorrect ? "resolved_correct" : "resolved_incorrect";
 
-  // Update thesis status
-  await updateThesis(thesisId, { status, isActive: false });
+  // Fetch most recent probability snapshot for Brier score
+  const [latestSnapshot] = await db
+    .select({ probability: thesisProbabilitySnapshots.probability })
+    .from(thesisProbabilitySnapshots)
+    .where(eq(thesisProbabilitySnapshots.thesisId, thesisId))
+    .orderBy(desc(thesisProbabilitySnapshots.computedAt))
+    .limit(1);
+
+  const finalProbability = latestSnapshot?.probability ?? null;
+  const outcome = wasCorrect ? 1 : 0;
+  const brierScore = finalProbability != null ? (finalProbability - outcome) ** 2 : null;
+
+  // Update thesis status with scoring data
+  await updateThesis(thesisId, {
+    status,
+    isActive: false,
+    resolvedAt: new Date(),
+    ...(finalProbability != null && { finalProbability }),
+    ...(brierScore != null && { brierScore }),
+    ...(resolutionSource && { resolutionSource }),
+  });
 
   // Reinforce all connections pointing to this thesis
   const conns = await getConnectionsTo("thesis", thesisId);
