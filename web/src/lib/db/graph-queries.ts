@@ -219,3 +219,4 @@ export async function reinforceConnection(connectionId: number, wasCorrect: bool
   const newWeight = Math.max(0.1, Math.min(2.0, currentWeight + delta));
   await db.update(connections).set({ adjustedWeight: newWeight }).where(eq(connections.id, connectionId));
 }
+
