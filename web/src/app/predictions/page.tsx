@@ -144,7 +144,10 @@ function ThesisCard({ thesis }: { thesis: ThesisWithProbability }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v: number) => [v + "%", "Probability"]} contentStyle={{ fontSize: 12 }} />
+              <Tooltip
+                formatter={(value) => [String(value) + "%", "Probability"]}
+                contentStyle={{ fontSize: 12 }}
+              />
               <Area type="monotone" dataKey="probability" stroke={color} strokeWidth={2} fill={"url(#grad" + thesis.id + ")"} />
             </AreaChart>
           </ResponsiveContainer>
