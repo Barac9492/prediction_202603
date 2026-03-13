@@ -1,4 +1,4 @@
-"use client";
+'use client';
 export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 
@@ -10,6 +10,8 @@ interface Thesis {
   domain: string;
   tags: string[];
   isActive: boolean;
+  status: string;
+  aiRationale?: string;
   createdAt: string;
 }
 
@@ -21,6 +23,7 @@ const DIRECTION_COLORS: Record<string, string> = {
 
 export default function ThesisPage() {
   const [theses, setTheses] = useState<Thesis[]>([]);
+  const [pendingTheses, setPendingTheses] = useState<Thesis[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -31,15 +34,24 @@ export default function ThesisPage() {
     tags: "",
   });
   const [saving, setSaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestMsg, setSuggestMsg] = useState("");
 
-  useEffect(() => {
+  const fetchTheses = () => {
+    setLoading(true);
     fetch("/api/theses")
       .then((r) => r.json())
       .then((data) => {
-        setTheses(Array.isArray(data) ? data : []);
+        const all = Array.isArray(data) ? data : [];
+        setTheses(all.filter((t: Thesis) => t.status === "active" || (!t.status && t.isActive)));
+        setPendingTheses(all.filter((t: Thesis) => t.status === "pending_review"));
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchTheses();
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
@@ -49,184 +61,144 @@ export default function ThesisPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: form.title,
-        description: form.description,
-        direction: form.direction,
-        domain: form.domain,
-        tags: form.tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
+        ...form,
+        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+        isActive: true,
+        status: "active",
       }),
     });
     if (res.ok) {
-      const thesis = await res.json();
-      setTheses([thesis, ...theses]);
       setForm({ title: "", description: "", direction: "bullish", domain: "AI", tags: "" });
       setShowForm(false);
+      fetchTheses();
     }
     setSaving(false);
   }
 
-  async function toggleActive(thesis: Thesis) {
-    const res = await fetch("/api/theses", {
+  async function handleArchive(id: number) {
+    await fetch("/api/theses", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: thesis.id, isActive: !thesis.isActive }),
+      body: JSON.stringify({ id, isActive: false, status: "archived" }),
     });
+    fetchTheses();
+  }
+
+  async function handleApprove(id: number) {
+    await fetch("/api/theses", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, isActive: true, status: "active" }),
+    });
+    fetchTheses();
+  }
+
+  async function handleDecline(id: number) {
+    await fetch("/api/theses", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, isActive: false, status: "archived" }),
+    });
+    fetchTheses();
+  }
+
+  async function handleSuggest() {
+    setSuggesting(true);
+    setSuggestMsg("");
+    const res = await fetch("/api/theses/suggest", { method: "POST" });
+    const data = await res.json();
     if (res.ok) {
-      setTheses(theses.map((t) => (t.id === thesis.id ? { ...t, isActive: !t.isActive } : t)));
+      setSuggestMsg(`checked ${data.suggested} thesis suggestions added to review queue.`);
+      fetchTheses();
+    } else {
+      setSuggestMsg(`error ${data.error || "Failed to suggest theses."}`);
     }
+    setSuggesting(false);
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto py-8 px-4 space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Investment Theses</h1>
-          <p className="text-sm text-zinc-400 mt-1">
-            Track hypotheses. News events are automatically connected to active theses.
-          </p>
+          <p className="text-zinc-400 text-sm mt-1">Track and manage your AI investment hypotheses</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium hover:bg-zinc-700 transition-colors"
-        >
-          {showForm ? "Cancel" : "+ New Thesis"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSuggest}
+            disabled={suggesting}
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {suggesting ? "Analyzing..." : "Suggest from News"}
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            + New Thesis
+          </button>
+        </div>
       </div>
 
+      {suggestMsg && (
+        <div className="text-sm px-4 py-2 rounded-lg bg-violet-950 text-violet-300 border border-violet-800">
+          {suggestMsg}
+        </div>
+      )}
+
       {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="rounded-lg border border-zinc-700 bg-zinc-900 p-5 space-y-4"
-        >
-          <h2 className="font-semibold text-sm text-zinc-300">New Investment Thesis</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs text-zinc-400 mb-1">Title</label>
-              <input
-                required
-                className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm focus:outline-none focus:border-zinc-500"
-                placeholder="e.g. NVIDIA dominates AI inference compute"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs text-zinc-400 mb-1">Description</label>
-              <textarea
-                required
-                rows={3}
-                className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm focus:outline-none focus:border-zinc-500 resize-none"
-                placeholder="Describe the thesis and what would confirm/deny it..."
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-zinc-400 mb-1">Direction</label>
-              <select
-                className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm focus:outline-none"
-                value={form.direction}
-                onChange={(e) => setForm({ ...form, direction: e.target.value })}
-              >
-                <option value="bullish">Bullish</option>
-                <option value="bearish">Bearish</option>
-                <option value="neutral">Neutral / Watch</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-zinc-400 mb-1">Domain</label>
-              <select
-                className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm focus:outline-none"
-                value={form.domain}
-                onChange={(e) => setForm({ ...form, domain: e.target.value })}
-              >
-                <option value="AI">AI</option>
-                <option value="Infra">Infrastructure</option>
-                <option value="SaaS">SaaS</option>
-                <option value="Semiconductor">Semiconductor</option>
-                <option value="VC">VC/Funding</option>
-              </select>
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs text-zinc-400 mb-1">Tags (comma-separated)</label>
-              <input
-                className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm focus:outline-none focus:border-zinc-500"
-                placeholder="nvidia, inference, chips"
-                value={form.tags}
-                onChange={(e) => setForm({ ...form, tags: e.target.value })}
-              />
-            </div>
+        <form onSubmit={handleCreate} className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">New Thesis</h2>
+          <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title" className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm" />
+          <textarea required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description" rows={3} className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm" />
+          <div className="flex gap-3">
+            <select value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
+              <option value="bullish">Bullish</option>
+              <option value="bearish">Bearish</option>
+              <option value="neutral">Neutral</option>
+            </select>
+            <input value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} placeholder="Domain" className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm w-32" />
+            <input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="Tags (comma-separated)" className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm" />
           </div>
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-50 transition-colors"
-            >
-              {saving ? "Saving..." : "Create Thesis"}
-            </button>
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => setShowForm(false)} className="px-3 py-1.5 text-sm text-zinc-400 hover:text-white">Cancel</button>
+            <button type="submit" disabled={saving} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors disabled:opacity-50">{saving ? "Saving..." : "Save Thesis"}</button>
           </div>
         </form>
       )}
 
-      {loading ? (
-        <div className="text-zinc-500 text-sm">Loading theses...</div>
-      ) : theses.length === 0 ? (
-        <div className="rounded-lg border border-zinc-800 p-8 text-center text-zinc-500">
-          <p className="text-lg mb-2">No theses yet</p>
-          <p className="text-sm">Create your first investment thesis to start tracking signals.</p>
-        </div>
-      ) : (
+      {pendingTheses.length > 0 && (
         <div className="space-y-3">
-          {theses.map((thesis) => (
-            <div
-              key={thesis.id}
-              className={`rounded-lg border p-4 transition-opacity ${
-                thesis.isActive ? "opacity-100" : "opacity-50"
-              } border-zinc-800 bg-zinc-900/50`}
-            >
-              <div className="flex items-start justify-between gap-4">
+          <h2 className="text-sm font-semibold text-violet-400 uppercase tracking-wider">
+            AI Suggestions - {pendingTheses.length} pending review
+          </h2>
+          {pendingTheses.map((t) => (
+            <div key={t.id} className="rounded-lg border border-violet-800 bg-violet-950/20 p-4">
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={`text-xs font-semibold px-2 py-0.5 rounded border ${
-                        DIRECTION_COLORS[thesis.direction] || DIRECTION_COLORS.neutral
-                      }`}
-                    >
-                      {thesis.direction.toUpperCase()}
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className={"text-xs px-2 py-0.5 rounded border " + (DIRECTION_COLORS[t.direction] ?? DIRECTION_COLORS.neutral)}>
+                      {t.direction}
                     </span>
-                    <span className="text-xs text-zinc-500">{thesis.domain}</span>
-                    {!thesis.isActive && (
-                      <span className="text-xs text-zinc-600 border border-zinc-700 px-2 py-0.5 rounded">
-                        ARCHIVED
-                      </span>
-                    )}
+                    <span className="text-xs text-zinc-500">{t.domain}</span>
+                    {t.tags?.map((tag) => (
+                      <span key={tag} className="text-xs bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">{tag}</span>
+                    ))}
                   </div>
-                  <h3 className="font-medium text-sm mb-1">{thesis.title}</h3>
-                  <p className="text-xs text-zinc-400 leading-relaxed">{thesis.description}</p>
-                  {thesis.tags && thesis.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {thesis.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-xs text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
+                  <h3 className="font-medium text-sm">{t.title}</h3>
+                  <p className="text-xs text-zinc-400 mt-1">{t.description}</p>
+                  {t.aiRationale && (
+                    <p className="text-xs text-violet-400 mt-1.5 italic">AI: {t.aiRationale}</p>
                   )}
                 </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <span className="text-xs text-zinc-600">#{thesis.id}</span>
-                  <button
-                    onClick={() => toggleActive(thesis)}
-                    className="text-xs text-zinc-400 hover:text-white transition-colors"
-                  >
-                    {thesis.isActive ? "Archive" : "Restore"}
+                <div className="flex flex-col gap-1 shrink-0">
+                  <button onClick={() => handleApprove(t.id)}
+                    className="px-3 py-1 text-xs bg-green-800 hover:bg-green-700 text-white rounded transition-colors">
+                    Approve
+                  </button>
+                  <button onClick={() => handleDecline(t.id)}
+                    className="px-3 py-1 text-xs bg-zinc-700 hover:bg-red-900 text-white rounded transition-colors">
+                    Decline
                   </button>
                 </div>
               </div>
@@ -234,6 +206,43 @@ export default function ThesisPage() {
           ))}
         </div>
       )}
+
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
+          Active Theses ({theses.length})
+        </h2>
+        {loading ? (
+          <div className="text-zinc-500 text-sm">Loading...</div>
+        ) : theses.length === 0 ? (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-8 text-center text-zinc-500">
+            <p className="text-lg mb-2">No theses yet</p>
+            <p className="text-sm">Click Suggest from News or add one manually.</p>
+          </div>
+        ) : (
+          theses.map((t) => (
+            <div key={t.id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className={"text-xs px-2 py-0.5 rounded border " + (DIRECTION_COLORS[t.direction] ?? DIRECTION_COLORS.neutral)}>
+                      {t.direction}
+                    </span>
+                    <span className="text-xs text-zinc-500">{t.domain}</span>
+                    {t.tags?.map((tag) => (
+                      <span key={tag} className="text-xs bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">{tag}</span>
+                    ))}
+                  </div>
+                  <h3 className="font-medium text-sm">{t.title}</h3>
+                  <p className="text-xs text-zinc-400 mt-1">{t.description}</p>
+                  <p className="text-xs text-zinc-500 mt-1.5">Created {new Date(t.createdAt).toLocaleDateString()}</p>
+                </div>
+                <button onClick={() => handleArchive(t.id)}
+                  className="text-xs text-zinc-600 hover:text-red-400 transition-colors shrink-0 mt-1">Archive</button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
