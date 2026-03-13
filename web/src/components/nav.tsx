@@ -10,6 +10,7 @@ const links = [
   { href: "/feed", label: "Feed" },
   { href: "/thesis", label: "Thesis" },
   { href: "/graph", label: "Graph" },
+  { href: "/predictions", label: "Predictions" },
 ];
 
 export function Nav() {
