@@ -8,11 +8,25 @@ import type { Signal, SourceData, ExtractionResult } from "@/lib/core/types";
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
-  const { topic, urls, text } = (await req.json()) as {
-    topic: string;
-    urls: string[];
-    text: string;
-  };
+  const body = await req.json();
+  const topic = typeof body.topic === "string" ? body.topic.trim() : "";
+  const urls: string[] = Array.isArray(body.urls)
+    ? body.urls.filter((u: unknown) => typeof u === "string" && u.trim())
+    : [];
+  const text = typeof body.text === "string" ? body.text.trim() : "";
+
+  if (!topic) {
+    return new Response(JSON.stringify({ error: "topic is required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (!urls.length && !text) {
+    return new Response(
+      JSON.stringify({ error: "At least one URL or text input is required" }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

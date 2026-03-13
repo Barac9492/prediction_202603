@@ -77,7 +77,7 @@ def extract_signals(source: Source, topic: str) -> ExtractionResult:
     content = source.content[:15000]
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6-20250415",
         max_tokens=2000,
         messages=[{
             "role": "user",

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { insertNewsEvent, listNewsEvents, markNewsProcessed, listTheses } from "@/lib/db/graph-queries";
+import { snapshotAllProbabilities } from "@/lib/db/probability";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
         .replace("{theses}", thesesText || "No active theses yet.");
 
       const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6-20250415",
         max_tokens: 1000,
         messages: [{ role: "user", content: prompt }],
       });
@@ -125,7 +126,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ processed: results.length, results });
+  // After processing news, recompute thesis probabilities
+  let probabilities: Awaited<ReturnType<typeof snapshotAllProbabilities>> = [];
+  if (results.length > 0) {
+    try {
+      probabilities = await snapshotAllProbabilities();
+    } catch (err) {
+      console.error("Failed to compute probabilities:", err);
+    }
+  }
+
+  return NextResponse.json({ processed: results.length, results, probabilitiesUpdated: probabilities.length });
 }
 
 /** GET /api/feed/ingest - Returns unprocessed count */

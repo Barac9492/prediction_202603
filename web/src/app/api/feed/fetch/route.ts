@@ -5,12 +5,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const AI_RSS_FEEDS = [
+  // General AI / Tech
   { url: "https://techcrunch.com/category/artificial-intelligence/feed/", source: "TechCrunch AI" },
   { url: "https://venturebeat.com/category/ai/feed/", source: "VentureBeat AI" },
   { url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", source: "The Verge AI" },
+  // Research
+  { url: "https://blog.research.google/atom.xml", source: "Google Research" },
   { url: "https://openai.com/blog/rss/", source: "OpenAI Blog" },
   { url: "https://www.anthropic.com/rss.xml", source: "Anthropic Blog" },
+  // Finance / VC
   { url: "https://a16z.com/feed/", source: "a16z" },
+  { url: "https://www.sequoiacap.com/feed/", source: "Sequoia" },
+  // Hacker News best-of (unofficial)
   { url: "https://hnrss.org/frontpage?q=AI+OR+LLM+OR+GPT+OR+model&count=20", source: "HN AI" },
   { url: "https://hnrss.org/frontpage?q=NVIDIA+OR+OpenAI+OR+Anthropic+OR+investment&count=10", source: "HN Invest" },
 ];
@@ -20,7 +26,7 @@ const AI_KEYWORDS = [
   "gemini", "openai", "anthropic", "deepmind", "nvidia", "gpu", "inference",
   "model", "transformer", "foundation model", "agi", "generative", "chatgpt",
   "copilot", "agent", "rag", "fine-tun", "training", "compute", "data center",
-  "accelerat", "semiconductor", "chip",
+  "accelerat", "semiconductor", "chip", "mlops", "vector", "embedding",
 ];
 
 function stripHtml(text: string): string {
