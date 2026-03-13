@@ -8,7 +8,7 @@ import {
 } from "./schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
-// ── Entity queries ────────────────────────────────────────────────────────
+// — Entity queries ————————————————————————————————————————————
 
 export async function upsertEntity(data: {
   name: string;
@@ -45,7 +45,7 @@ export async function getEntity(id: number) {
   return entity ?? null;
 }
 
-// ── Thesis queries ────────────────────────────────────────────────────────
+// — Thesis queries ————————————————————————————————————————————
 
 export async function createThesis(data: {
   title: string;
@@ -53,6 +53,9 @@ export async function createThesis(data: {
   direction: string;
   domain?: string;
   tags?: string[];
+  status?: string;
+  aiRationale?: string;
+  isActive?: boolean;
 }) {
   const [thesis] = await db.insert(theses).values(data).returning();
   return thesis;
@@ -65,6 +68,10 @@ export async function listTheses(activeOnly = false) {
   return db.select().from(theses).orderBy(desc(theses.createdAt));
 }
 
+export async function listPendingTheses() {
+  return db.select().from(theses).where(eq(theses.status, "pending_review")).orderBy(desc(theses.createdAt));
+}
+
 export async function getThesis(id: number) {
   const [thesis] = await db.select().from(theses).where(eq(theses.id, id));
   return thesis ?? null;
@@ -72,7 +79,7 @@ export async function getThesis(id: number) {
 
 export async function updateThesis(
   id: number,
-  data: Partial<{ title: string; description: string; direction: string; isActive: boolean }>
+  data: Partial<{ title: string; description: string; direction: string; isActive: boolean; status: string; aiRationale: string }>
 ) {
   const [updated] = await db
     .update(theses)
@@ -82,7 +89,7 @@ export async function updateThesis(
   return updated;
 }
 
-// ── News event queries ────────────────────────────────────────────────────
+// — News event queries ————————————————————————————————————————
 
 export async function insertNewsEvent(data: {
   title: string;
@@ -138,7 +145,7 @@ export async function getNewsEvent(id: number) {
   return event ?? null;
 }
 
-// ── Connection queries ────────────────────────────────────────────────────
+// — Connection queries ————————————————————————————————————————
 
 export async function createConnection(data: {
   fromType: string; fromId: number; toType: string; toId: number;
@@ -187,7 +194,7 @@ export async function getGraphData(opts?: { thesisIds?: number[]; since?: Date; 
   return { newsNodes, entityNodes, thesisNodes, edges };
 }
 
-// ── Backtest queries ──────────────────────────────────────────────────────
+// — Backtest queries ————————————————————————————————————————
 
 export async function createBacktestRun(data: {
   name: string; thesisId?: number; startDate: Date; endDate: Date; parameters?: Record<string, unknown>;
@@ -219,4 +226,3 @@ export async function reinforceConnection(connectionId: number, wasCorrect: bool
   const newWeight = Math.max(0.1, Math.min(2.0, currentWeight + delta));
   await db.update(connections).set({ adjustedWeight: newWeight }).where(eq(connections.id, connectionId));
 }
-
