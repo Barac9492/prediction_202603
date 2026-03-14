@@ -84,9 +84,9 @@ export default function AnalyzePage() {
       <SourceInput onSubmit={handleSubmit} disabled={loading} />
 
       {progress.length > 0 && (
-        <div className="space-y-1 rounded-md border border-zinc-800 bg-zinc-900/50 p-4">
+        <div className="space-y-1 rounded-md border border-pm-border bg-white p-4">
           {progress.map((p, i) => (
-            <p key={i} className="text-sm text-zinc-400">
+            <p key={i} className="text-sm text-pm-muted">
               {i === progress.length - 1 && loading ? "⏳ " : "✓ "}
               {p}
             </p>
@@ -115,7 +115,7 @@ export default function AnalyzePage() {
           <PredictionCard prediction={result.prediction} />
 
           <div>
-            <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-zinc-500">
+            <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-pm-text-secondary">
               Signals ({result.signals.length})
             </h3>
             <div className="space-y-2">
@@ -127,20 +127,20 @@ export default function AnalyzePage() {
 
           {result.sources.length > 0 && (
             <div>
-              <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-zinc-500">
+              <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-pm-text-secondary">
                 Sources ({result.sources.length})
               </h3>
               <div className="space-y-2">
                 {result.sources.map((src, i) => (
                   <div
                     key={i}
-                    className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3"
+                    className="rounded-md border border-pm-border bg-white p-3"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-zinc-300">
+                      <span className="text-sm font-medium text-pm-text-primary">
                         {src.title}
                       </span>
-                      <span className="text-xs text-zinc-600">
+                      <span className="text-xs text-pm-text-meta">
                         relevance {src.relevanceScore}/5
                       </span>
                     </div>
@@ -155,7 +155,7 @@ export default function AnalyzePage() {
                       </a>
                     )}
                     {src.summary && (
-                      <p className="mt-1 text-xs text-zinc-500">
+                      <p className="mt-1 text-xs text-pm-text-secondary">
                         {src.summary}
                       </p>
                     )}

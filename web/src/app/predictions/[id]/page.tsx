@@ -5,15 +5,15 @@ import { SignalCard } from "@/components/signal-card";
 import { ResolveDialog } from "@/components/resolve-dialog";
 
 const directionColor: Record<string, string> = {
-  bullish: "text-green-400",
-  bearish: "text-red-400",
-  neutral: "text-yellow-400",
+  bullish: "text-green-600",
+  bearish: "text-red-600",
+  neutral: "text-yellow-600",
 };
 
 const directionBg: Record<string, string> = {
-  bullish: "bg-green-500/10 border-green-500/30",
-  bearish: "bg-red-500/10 border-red-500/30",
-  neutral: "bg-yellow-500/10 border-yellow-500/30",
+  bullish: "bg-green-50 border-green-200",
+  bearish: "bg-red-50 border-red-200",
+  neutral: "bg-yellow-50 border-yellow-200",
 };
 
 export default async function PredictionDetailPage({
@@ -34,7 +34,7 @@ export default async function PredictionDetailPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{p.topic}</h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-pm-text-secondary">
             #{p.id} — {p.createdAt ? new Date(p.createdAt).toLocaleString() : "—"}
           </p>
         </div>
@@ -51,23 +51,23 @@ export default async function PredictionDetailPage({
           >
             {p.direction}
           </span>
-          <span className="text-lg text-zinc-300">
+          <span className="text-lg text-pm-text-primary">
             {p.confidence}% confidence
           </span>
         </div>
 
-        <div className="mb-3 text-sm text-zinc-400">
+        <div className="mb-3 text-sm text-pm-muted">
           Score: {p.weightedScore.toFixed(1)} | Signals: {p.signalCount} (
           {p.bullishCount}↑ {p.bearishCount}↓ {p.neutralCount}→)
         </div>
 
         {topReasons.length > 0 && (
           <div className="space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+            <p className="text-xs font-medium uppercase tracking-wider text-pm-text-secondary">
               Top reasons
             </p>
             {topReasons.map((r, i) => (
-              <p key={i} className="text-sm text-zinc-300">
+              <p key={i} className="text-sm text-pm-text-primary">
                 • {r}
               </p>
             ))}
@@ -75,12 +75,12 @@ export default async function PredictionDetailPage({
         )}
 
         {contradictions.length > 0 && (
-          <div className="mt-3 rounded border border-yellow-500/30 bg-yellow-500/5 p-3">
-            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-yellow-500">
+          <div className="mt-3 rounded border border-yellow-200 bg-yellow-50 p-3">
+            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-yellow-600">
               Contradictions
             </p>
             {contradictions.map((c, i) => (
-              <p key={i} className="text-sm text-yellow-300/80">
+              <p key={i} className="text-sm text-yellow-700">
                 {c}
               </p>
             ))}
@@ -89,7 +89,7 @@ export default async function PredictionDetailPage({
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-zinc-500">
+        <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-pm-text-secondary">
           Signals ({signals.length})
         </h2>
         <div className="space-y-2">
@@ -110,20 +110,20 @@ export default async function PredictionDetailPage({
 
       {sources.length > 0 && (
         <div>
-          <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-zinc-500">
+          <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-pm-text-secondary">
             Sources ({sources.length})
           </h2>
           <div className="space-y-2">
             {sources.map((src) => (
               <div
                 key={src.id}
-                className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3"
+                className="rounded-md border border-pm-border bg-white p-3"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-zinc-300">
+                  <span className="text-sm font-medium text-pm-text-primary">
                     {src.title}
                   </span>
-                  <span className="text-xs text-zinc-600">
+                  <span className="text-xs text-pm-text-meta">
                     relevance {src.relevanceScore}/5
                   </span>
                 </div>
@@ -138,7 +138,7 @@ export default async function PredictionDetailPage({
                   </a>
                 )}
                 {src.summary && (
-                  <p className="mt-1 text-xs text-zinc-500">{src.summary}</p>
+                  <p className="mt-1 text-xs text-pm-text-secondary">{src.summary}</p>
                 )}
               </div>
             ))}

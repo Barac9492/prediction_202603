@@ -4,14 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/analyze", label: "Analyze" },
-  { href: "/log", label: "Log" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/feed", label: "Feed" },
-  { href: "/thesis", label: "Thesis" },
+  { href: "/thesis", label: "Theses" },
   { href: "/graph", label: "Graph" },
-  { href: "/predictions", label: "Predictions" },
-  { href: "/track-record", label: "Track Record" },
+  { href: "/track-record", label: "Performance" },
+  { href: "/ops", label: "Operations" },
 ];
 
 export function Nav() {

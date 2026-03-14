@@ -29,39 +29,39 @@ export function CalibrationCurve({ data }: { data: CalibrationPoint[] }) {
     <div className="w-full h-[300px]">
       <ResponsiveContainer width="100%" height="100%">
         <ScatterChart margin={{ top: 10, right: 30, bottom: 20, left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
             type="number"
             dataKey="predicted"
             domain={[0, 1]}
             tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-            label={{ value: "Predicted Probability", position: "bottom", fill: "#71717a", fontSize: 12 }}
-            stroke="#3f3f46"
-            tick={{ fill: "#71717a", fontSize: 11 }}
+            label={{ value: "Predicted Probability", position: "bottom", fill: "#6b7280", fontSize: 12 }}
+            stroke="#d1d5db"
+            tick={{ fill: "#6b7280", fontSize: 11 }}
           />
           <YAxis
             type="number"
             dataKey="actual"
             domain={[0, 1]}
             tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-            label={{ value: "Actual Hit Rate", angle: -90, position: "insideLeft", fill: "#71717a", fontSize: 12 }}
-            stroke="#3f3f46"
-            tick={{ fill: "#71717a", fontSize: 11 }}
+            label={{ value: "Actual Hit Rate", angle: -90, position: "insideLeft", fill: "#6b7280", fontSize: 12 }}
+            stroke="#d1d5db"
+            tick={{ fill: "#6b7280", fontSize: 11 }}
           />
           <Tooltip
             content={({ payload }) => {
               if (!payload?.length) return null;
               const d = payload[0].payload as CalibrationPoint;
               return (
-                <div className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-xs">
-                  <p className="text-white font-medium">{d.label}</p>
-                  <p className="text-zinc-400">
+                <div className="bg-white shadow-lg border border-pm-border rounded px-3 py-2 text-xs">
+                  <p className="text-pm-text-primary font-medium">{d.label}</p>
+                  <p className="text-pm-muted">
                     Predicted: {(d.predicted * 100).toFixed(0)}%
                   </p>
-                  <p className="text-zinc-400">
+                  <p className="text-pm-muted">
                     Actual: {(d.actual * 100).toFixed(0)}%
                   </p>
-                  <p className="text-zinc-400">n = {d.count}</p>
+                  <p className="text-pm-muted">n = {d.count}</p>
                 </div>
               );
             }}
@@ -71,7 +71,7 @@ export function CalibrationCurve({ data }: { data: CalibrationPoint[] }) {
             data={diagonal}
             dataKey="y"
             fill="none"
-            line={{ stroke: "#3f3f46", strokeDasharray: "5 5", strokeWidth: 1 }}
+            line={{ stroke: "#d1d5db", strokeDasharray: "5 5", strokeWidth: 1 }}
             legendType="none"
             isAnimationActive={false}
           />

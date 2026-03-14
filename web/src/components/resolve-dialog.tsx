@@ -16,10 +16,10 @@ export function ResolveDialog({ predictionId, currentOutcome }: Props) {
 
   if (currentOutcome) {
     return (
-      <div className="rounded-md border border-zinc-700 bg-zinc-900 p-3">
-        <p className="text-sm text-zinc-400">
+      <div className="rounded-md border border-pm-border bg-white p-3">
+        <p className="text-sm text-pm-muted">
           Resolved:{" "}
-          <span className="font-medium text-white">{currentOutcome}</span>
+          <span className="font-medium text-pm-text-primary">{currentOutcome}</span>
         </p>
       </div>
     );
@@ -37,7 +37,7 @@ export function ResolveDialog({ predictionId, currentOutcome }: Props) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-700"
+        className="rounded-md bg-pm-bg-search px-3 py-1.5 text-sm text-pm-text-primary hover:bg-gray-200"
       >
         Resolve
       </button>
@@ -45,8 +45,8 @@ export function ResolveDialog({ predictionId, currentOutcome }: Props) {
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-zinc-700 bg-zinc-900 p-4">
-      <p className="text-sm font-medium text-zinc-300">
+    <div className="space-y-3 rounded-md border border-pm-border bg-white p-4">
+      <p className="text-sm font-medium text-pm-text-primary">
         What was the actual outcome?
       </p>
       <div className="flex gap-2">
@@ -61,7 +61,7 @@ export function ResolveDialog({ predictionId, currentOutcome }: Props) {
                   : o === "bearish"
                     ? "bg-red-600 text-white"
                     : "bg-yellow-600 text-white"
-                : "bg-zinc-800 text-zinc-400 hover:text-white"
+                : "bg-pm-bg-search text-pm-muted hover:text-pm-text-primary"
             }`}
           >
             {o}
@@ -73,7 +73,7 @@ export function ResolveDialog({ predictionId, currentOutcome }: Props) {
         onChange={(e) => setNotes(e.target.value)}
         placeholder="Notes (optional)"
         rows={2}
-        className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500"
+        className="w-full rounded-md border border-pm-border bg-pm-bg-search px-3 py-2 text-sm text-pm-text-primary placeholder-gray-400"
       />
       <div className="flex gap-2">
         <button
@@ -85,7 +85,7 @@ export function ResolveDialog({ predictionId, currentOutcome }: Props) {
         </button>
         <button
           onClick={() => setOpen(false)}
-          className="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:text-white"
+          className="rounded-md px-3 py-1.5 text-sm text-pm-muted hover:text-pm-text-primary"
         >
           Cancel
         </button>

@@ -8,9 +8,9 @@ import { thesisProbabilitySnapshots, theses as thesesTable } from "@/lib/db/sche
 import { desc, eq } from "drizzle-orm";
 
 const directionColor: Record<string, string> = {
-    bullish: "text-green-400",
-    bearish: "text-red-400",
-    neutral: "text-yellow-400",
+    bullish: "text-green-600",
+    bearish: "text-red-600",
+    neutral: "text-yellow-600",
 };
 
 async function getRecentSnapshots(limit = 30) {
@@ -57,13 +57,13 @@ export default async function LogPage({
               </div>
         
           {/* Tab bar */}
-              <div className="flex gap-1 border-b border-zinc-800 pb-2">
+              <div className="flex gap-1 border-b border-pm-border pb-2">
                       <Link
                                   href="/log?tab=predictions"
                                   className={`rounded-t-md px-4 py-2 text-sm font-medium ${
                                                 activeTab === "predictions"
-                                                  ? "bg-zinc-800 text-white"
-                                                  : "text-zinc-500 hover:text-white"
+                                                  ? "bg-pm-bg-search text-pm-text-primary"
+                                                  : "text-pm-text-secondary hover:text-pm-text-primary"
                                   }`}
                                 >
                                 Analysis Predictions ({preds.length})
@@ -72,8 +72,8 @@ export default async function LogPage({
                                   href="/log?tab=snapshots"
                                   className={`rounded-t-md px-4 py-2 text-sm font-medium ${
                                                 activeTab === "snapshots"
-                                                  ? "bg-zinc-800 text-white"
-                                                  : "text-zinc-500 hover:text-white"
+                                                  ? "bg-pm-bg-search text-pm-text-primary"
+                                                  : "text-pm-text-secondary hover:text-pm-text-primary"
                                   }`}
                                 >
                                 Probability Snapshots ({snapshots.length})
@@ -90,8 +90,8 @@ export default async function LogPage({
                                                     href={`/log?tab=predictions&filter=${v}`}
                                                     className={`rounded-md px-3 py-1 text-sm capitalize ${
                                                                         f === v
-                                                                          ? "bg-zinc-800 text-white"
-                                                                          : "text-zinc-500 hover:text-white"
+                                                                          ? "bg-pm-bg-search text-pm-text-primary"
+                                                                          : "text-pm-text-secondary hover:text-pm-text-primary"
                                                     }`}
                                                   >
                                     {v}
@@ -100,11 +100,11 @@ export default async function LogPage({
                             </div>
                   
                     {preds.length === 0 ? (
-                                <div className="rounded-lg border border-zinc-800 p-8 text-center">
-                                              <p className="text-sm text-zinc-500">
+                                <div className="rounded-lg border border-pm-border p-8 text-center">
+                                              <p className="text-sm text-pm-text-secondary">
                                                               No analysis predictions yet.
                                               </p>
-                                              <p className="mt-2 text-xs text-zinc-600">
+                                              <p className="mt-2 text-xs text-pm-text-meta">
                                                               Use the{" "}
                                                               <Link href="/analyze" className="text-blue-400 hover:underline">
                                                                                 Analyze
@@ -113,10 +113,10 @@ export default async function LogPage({
                                               </p>
                                 </div>
                               ) : (
-                                <div className="overflow-hidden rounded-lg border border-zinc-800">
+                                <div className="overflow-hidden rounded-lg border border-pm-border">
                                               <table className="w-full text-sm">
                                                               <thead>
-                                                                                <tr className="border-b border-zinc-800 bg-zinc-900/50 text-left text-xs uppercase tracking-wider text-zinc-500">
+                                                                                <tr className="border-b border-pm-border bg-white text-left text-xs uppercase tracking-wider text-pm-text-secondary">
                                                                                                     <th className="px-4 py-2">ID</th>
                                                                                                     <th className="px-4 py-2">Date</th>
                                                                                                     <th className="px-4 py-2">Topic</th>
@@ -129,25 +129,25 @@ export default async function LogPage({
                                                                 {preds.map((p) => (
                                                       <tr
                                                                               key={p.id}
-                                                                              className="border-b border-zinc-800/50 hover:bg-zinc-900/30"
+                                                                              className="border-b border-pm-border hover:bg-pm-bg-search"
                                                                             >
-                                                                            <td className="px-4 py-2 text-zinc-500">{p.id}</td>
-                                                                            <td className="px-4 py-2 text-zinc-500">
+                                                                            <td className="px-4 py-2 text-pm-text-secondary">{p.id}</td>
+                                                                            <td className="px-4 py-2 text-pm-text-secondary">
                                                                               {p.createdAt
                                                                                                           ? new Date(p.createdAt).toLocaleDateString()
                                                                                                           : "\u2014"}
                                                                             </td>
                                                                             <td className="px-4 py-2">
-                                                                                                    <span className="text-zinc-300">{p.topic}</span>
+                                                                                                    <span className="text-pm-text-primary">{p.topic}</span>
                                                                             </td>
                                                                             <td
                                                                                                       className={`px-4 py-2 font-medium uppercase ${
-                                                                                                                                  directionColor[p.direction] || "text-zinc-400"
+                                                                                                                                  directionColor[p.direction] || "text-pm-muted"
                                                                                                         }`}
                                                                                                     >
                                                                               {p.direction}
                                                                             </td>
-                                                                            <td className="px-4 py-2 text-zinc-300">
+                                                                            <td className="px-4 py-2 text-pm-text-primary">
                                                                               {p.confidence}%
                                                                             </td>
                                                                             <td className="px-4 py-2">
@@ -155,8 +155,8 @@ export default async function LogPage({
                                                                                                         <span
                                                                                                                                       className={`text-xs font-medium uppercase ${
                                                                                                                                                                       p.direction === p.actualOutcome
-                                                                                                                                                                        ? "text-green-400"
-                                                                                                                                                                        : "text-red-400"
+                                                                                                                                                                        ? "text-green-600"
+                                                                                                                                                                        : "text-red-600"
                                                                                                                                         }`}
                                                                                                                                     >
                                                                                                           {p.actualOutcome}
@@ -165,7 +165,7 @@ export default async function LogPage({
                                                                                                                                           : " \u2717"}
                                                                                                           </span>
                                                                                                       ) : (
-                                                                                                        <span className="text-xs text-zinc-600">pending</span>
+                                                                                                        <span className="text-xs text-pm-text-meta">pending</span>
                                                                                                     )}
                                                                             </td>
                                                       </tr>
@@ -178,13 +178,13 @@ export default async function LogPage({
                     {/* Resolved Theses summary */}
                     {resolvedTheses.length > 0 && (
                                 <div className="space-y-3">
-                                              <h2 className="text-lg font-semibold text-zinc-300">
+                                              <h2 className="text-lg font-semibold text-pm-text-primary">
                                                               Resolved Theses
                                               </h2>
-                                              <div className="overflow-hidden rounded-lg border border-zinc-800">
+                                              <div className="overflow-hidden rounded-lg border border-pm-border">
                                                               <table className="w-full text-sm">
                                                                                 <thead>
-                                                                                                    <tr className="border-b border-zinc-800 bg-zinc-900/50 text-left text-xs uppercase tracking-wider text-zinc-500">
+                                                                                                    <tr className="border-b border-pm-border bg-white text-left text-xs uppercase tracking-wider text-pm-text-secondary">
                                                                                                                           <th className="px-4 py-2">Thesis</th>
                                                                                                                           <th className="px-4 py-2">Direction</th>
                                                                                                                           <th className="px-4 py-2">Final Prob</th>
@@ -197,24 +197,24 @@ export default async function LogPage({
                                                                                   {resolvedTheses.map((t) => (
                                                         <tr
                                                                                   key={t.id}
-                                                                                  className="border-b border-zinc-800/50 hover:bg-zinc-900/30"
+                                                                                  className="border-b border-pm-border hover:bg-pm-bg-search"
                                                                                 >
-                                                                                <td className="px-4 py-2 text-zinc-300 max-w-xs truncate">
+                                                                                <td className="px-4 py-2 text-pm-text-primary max-w-xs truncate">
                                                                                   {t.title}
                                                                                   </td>
                                                                                 <td
                                                                                                             className={`px-4 py-2 font-medium uppercase ${
-                                                                                                                                          directionColor[t.direction] || "text-zinc-400"
+                                                                                                                                          directionColor[t.direction] || "text-pm-muted"
                                                                                                               }`}
                                                                                                           >
                                                                                   {t.direction}
                                                                                   </td>
-                                                                                <td className="px-4 py-2 text-zinc-300">
+                                                                                <td className="px-4 py-2 text-pm-text-primary">
                                                                                   {t.finalProbability != null
                                                                                                                 ? `${(t.finalProbability * 100).toFixed(0)}%`
                                                                                                                 : "\u2014"}
                                                                                   </td>
-                                                                                <td className="px-4 py-2 text-zinc-400">
+                                                                                <td className="px-4 py-2 text-pm-muted">
                                                                                   {t.brierScore != null
                                                                                                                 ? t.brierScore.toFixed(3)
                                                                                                                 : "\u2014"}
@@ -223,8 +223,8 @@ export default async function LogPage({
                                                                                                           <span
                                                                                                                                         className={`text-xs font-medium ${
                                                                                                                                                                         t.status === "resolved_correct"
-                                                                                                                                                                          ? "text-green-400"
-                                                                                                                                                                          : "text-red-400"
+                                                                                                                                                                          ? "text-green-600"
+                                                                                                                                                                          : "text-red-600"
                                                                                                                                           }`}
                                                                                                                                       >
                                                                                                             {t.status === "resolved_correct"
@@ -232,7 +232,7 @@ export default async function LogPage({
                                                                                                                                             : "Incorrect \u2717"}
                                                                                                             </span>
                                                                                   </td>
-                                                                                <td className="px-4 py-2 text-zinc-500 text-xs">
+                                                                                <td className="px-4 py-2 text-pm-text-secondary text-xs">
                                                                                   {t.resolvedAt
                                                                                                                 ? new Date(t.resolvedAt).toLocaleDateString()
                                                                                                                 : "\u2014"}
@@ -250,11 +250,11 @@ export default async function LogPage({
           {activeTab === "snapshots" && (
                   <>
                     {snapshots.length === 0 ? (
-                                <div className="rounded-lg border border-zinc-800 p-8 text-center">
-                                              <p className="text-sm text-zinc-500">
+                                <div className="rounded-lg border border-pm-border p-8 text-center">
+                                              <p className="text-sm text-pm-text-secondary">
                                                               No probability snapshots yet.
                                               </p>
-                                              <p className="mt-2 text-xs text-zinc-600">
+                                              <p className="mt-2 text-xs text-pm-text-meta">
                                                               Use{" "}
                                                               <Link
                                                                                   href="/predictions"
@@ -266,10 +266,10 @@ export default async function LogPage({
                                               </p>
                                 </div>
                               ) : (
-                                <div className="overflow-hidden rounded-lg border border-zinc-800">
+                                <div className="overflow-hidden rounded-lg border border-pm-border">
                                               <table className="w-full text-sm">
                                                               <thead>
-                                                                                <tr className="border-b border-zinc-800 bg-zinc-900/50 text-left text-xs uppercase tracking-wider text-zinc-500">
+                                                                                <tr className="border-b border-pm-border bg-white text-left text-xs uppercase tracking-wider text-pm-text-secondary">
                                                                                                     <th className="px-4 py-2">Date</th>
                                                                                                     <th className="px-4 py-2">Thesis</th>
                                                                                                     <th className="px-4 py-2">Direction</th>
@@ -282,27 +282,27 @@ export default async function LogPage({
                                                                 {snapshots.map((s) => (
                                                       <tr
                                                                               key={s.id}
-                                                                              className="border-b border-zinc-800/50 hover:bg-zinc-900/30"
+                                                                              className="border-b border-pm-border hover:bg-pm-bg-search"
                                                                             >
-                                                                            <td className="px-4 py-2 text-zinc-500 text-xs">
+                                                                            <td className="px-4 py-2 text-pm-text-secondary text-xs">
                                                                               {new Date(s.computedAt).toLocaleString()}
                                                                             </td>
                                                                             <td className="px-4 py-2">
                                                                                                     <Link
                                                                                                                                 href="/predictions"
-                                                                                                                                className="text-zinc-300 hover:text-white hover:underline"
+                                                                                                                                className="text-pm-text-primary hover:text-pm-text-primary hover:underline"
                                                                                                                               >
                                                                                                       {s.thesisTitle}
                                                                                                       </Link>
                                                                             </td>
                                                                             <td
                                                                                                       className={`px-4 py-2 font-medium uppercase text-xs ${
-                                                                                                                                  directionColor[s.thesisDirection] || "text-zinc-400"
+                                                                                                                                  directionColor[s.thesisDirection] || "text-pm-muted"
                                                                                                         }`}
                                                                                                     >
                                                                               {s.thesisDirection}
                                                                             </td>
-                                                                            <td className="px-4 py-2 text-zinc-300">
+                                                                            <td className="px-4 py-2 text-pm-text-primary">
                                                                               {(s.probability * 100).toFixed(1)}%
                                                                             </td>
                                                                             <td className="px-4 py-2">
@@ -310,20 +310,20 @@ export default async function LogPage({
                                                                                                         <span
                                                                                                                                       className={`text-xs font-medium ${
                                                                                                                                                                       s.momentum > 0
-                                                                                                                                                                        ? "text-green-400"
+                                                                                                                                                                        ? "text-green-600"
                                                                                                                                                                         : s.momentum < 0
-                                                                                                                                                                        ? "text-red-400"
-                                                                                                                                                                        : "text-zinc-500"
+                                                                                                                                                                        ? "text-red-600"
+                                                                                                                                                                        : "text-pm-text-secondary"
                                                                                                                                         }`}
                                                                                                                                     >
                                                                                                           {s.momentum > 0 ? "+" : ""}
                                                                                                           {(s.momentum * 100).toFixed(1)}%
                                                                                                           </span>
                                                                                                       ) : (
-                                                                                                        <span className="text-xs text-zinc-600">\u2014</span>
+                                                                                                        <span className="text-xs text-pm-text-meta">\u2014</span>
                                                                                                     )}
                                                                             </td>
-                                                                            <td className="px-4 py-2 text-zinc-400">
+                                                                            <td className="px-4 py-2 text-pm-muted">
                                                                               {s.signalCount}
                                                                             </td>
                                                       </tr>
