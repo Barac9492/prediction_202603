@@ -89,13 +89,11 @@ export async function computeThesisProbabilityAtTime(
     if (conn.sourceNewsId) newsIdSet.add(conn.sourceNewsId);
   }
 
-  const total = bullish + bearish + neutral * 0.5;
-  let probability: number;
-  if (total === 0) {
-    probability = 0.5;
-  } else {
-    probability = (bullish + neutral * params.neutralFactor) / total;
-  }
+  // Bayesian log-odds updating: net directional evidence drives probability via sigmoid.
+  // Scale factor (0.15) accounts for signal correlation — news-derived signals aren't independent.
+  const EVIDENCE_SCALE = 0.15;
+  const netEvidence = (bullish - bearish + neutral * params.neutralFactor) * EVIDENCE_SCALE;
+  let probability = 1 / (1 + Math.exp(-netEvidence));
   probability = Math.max(0.05, Math.min(0.95, probability));
 
   // Cross-thesis influence
