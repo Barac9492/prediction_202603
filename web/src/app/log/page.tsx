@@ -53,8 +53,8 @@ export default async function LogPage({
   return (
         <div className="space-y-6">
               <div className="flex items-center justify-between">
-                      <h1 className="text-2xl font-bold">Prediction Log</h1>h1>
-              </div>div>
+                      <h1 className="text-2xl font-bold">Prediction Log</h1>
+              </div>
         
           {/* Tab bar */}
               <div className="flex gap-1 border-b border-zinc-800 pb-2">
@@ -67,7 +67,7 @@ export default async function LogPage({
                                   }`}
                                 >
                                 Analysis Predictions ({preds.length})
-                      </Link>Link>
+                      </Link>
                       <Link
                                   href="/log?tab=snapshots"
                                   className={`rounded-t-md px-4 py-2 text-sm font-medium ${
@@ -77,8 +77,8 @@ export default async function LogPage({
                                   }`}
                                 >
                                 Probability Snapshots ({snapshots.length})
-                      </Link>Link>
-              </div>div>
+                      </Link>
+              </div>
         
           {activeTab === "predictions" && (
                   <>
@@ -95,61 +95,61 @@ export default async function LogPage({
                                                     }`}
                                                   >
                                     {v}
-                                  </Link>Link>
+                                  </Link>
                                 ))}
-                            </div>div>
+                            </div>
                   
                     {preds.length === 0 ? (
                                 <div className="rounded-lg border border-zinc-800 p-8 text-center">
                                               <p className="text-sm text-zinc-500">
                                                               No analysis predictions yet.
-                                              </p>p>
+                                              </p>
                                               <p className="mt-2 text-xs text-zinc-600">
                                                               Use the{" "}
                                                               <Link href="/analyze" className="text-blue-400 hover:underline">
                                                                                 Analyze
-                                                              </Link>Link>{" "}
+                                                              </Link>{" "}
                                                               page to create signal-based predictions from URLs and text.
-                                              </p>p>
-                                </div>div>
+                                              </p>
+                                </div>
                               ) : (
                                 <div className="overflow-hidden rounded-lg border border-zinc-800">
                                               <table className="w-full text-sm">
                                                               <thead>
                                                                                 <tr className="border-b border-zinc-800 bg-zinc-900/50 text-left text-xs uppercase tracking-wider text-zinc-500">
-                                                                                                    <th className="px-4 py-2">ID</th>th>
-                                                                                                    <th className="px-4 py-2">Date</th>th>
-                                                                                                    <th className="px-4 py-2">Topic</th>th>
-                                                                                                    <th className="px-4 py-2">Direction</th>th>
-                                                                                                    <th className="px-4 py-2">Confidence</th>th>
-                                                                                                    <th className="px-4 py-2">Outcome</th>th>
-                                                                                </tr>tr>
-                                                              </thead>thead>
+                                                                                                    <th className="px-4 py-2">ID</th>
+                                                                                                    <th className="px-4 py-2">Date</th>
+                                                                                                    <th className="px-4 py-2">Topic</th>
+                                                                                                    <th className="px-4 py-2">Direction</th>
+                                                                                                    <th className="px-4 py-2">Confidence</th>
+                                                                                                    <th className="px-4 py-2">Outcome</th>
+                                                                                </tr>
+                                                              </thead>
                                                               <tbody>
                                                                 {preds.map((p) => (
                                                       <tr
                                                                               key={p.id}
                                                                               className="border-b border-zinc-800/50 hover:bg-zinc-900/30"
                                                                             >
-                                                                            <td className="px-4 py-2 text-zinc-500">{p.id}</td>td>
+                                                                            <td className="px-4 py-2 text-zinc-500">{p.id}</td>
                                                                             <td className="px-4 py-2 text-zinc-500">
                                                                               {p.createdAt
                                                                                                           ? new Date(p.createdAt).toLocaleDateString()
                                                                                                           : "\u2014"}
-                                                                            </td>td>
+                                                                            </td>
                                                                             <td className="px-4 py-2">
-                                                                                                    <span className="text-zinc-300">{p.topic}</span>span>
-                                                                            </td>td>
+                                                                                                    <span className="text-zinc-300">{p.topic}</span>
+                                                                            </td>
                                                                             <td
                                                                                                       className={`px-4 py-2 font-medium uppercase ${
                                                                                                                                   directionColor[p.direction] || "text-zinc-400"
                                                                                                         }`}
                                                                                                     >
                                                                               {p.direction}
-                                                                            </td>td>
+                                                                            </td>
                                                                             <td className="px-4 py-2 text-zinc-300">
                                                                               {p.confidence}%
-                                                                            </td>td>
+                                                                            </td>
                                                                             <td className="px-4 py-2">
                                                                               {p.actualOutcome ? (
                                                                                                         <span
@@ -163,16 +163,16 @@ export default async function LogPage({
                                                                                                           {p.direction === p.actualOutcome
                                                                                                                                           ? " \u2713"
                                                                                                                                           : " \u2717"}
-                                                                                                          </span>span>
+                                                                                                          </span>
                                                                                                       ) : (
-                                                                                                        <span className="text-xs text-zinc-600">pending</span>span>
+                                                                                                        <span className="text-xs text-zinc-600">pending</span>
                                                                                                     )}
-                                                                            </td>td>
-                                                      </tr>tr>
+                                                                            </td>
+                                                      </tr>
                                                     ))}
-                                                              </tbody>tbody>
-                                              </table>table>
-                                </div>div>
+                                                              </tbody>
+                                              </table>
+                                </div>
                             )}
                   
                     {/* Resolved Theses summary */}
@@ -180,19 +180,19 @@ export default async function LogPage({
                                 <div className="space-y-3">
                                               <h2 className="text-lg font-semibold text-zinc-300">
                                                               Resolved Theses
-                                              </h2>h2>
+                                              </h2>
                                               <div className="overflow-hidden rounded-lg border border-zinc-800">
                                                               <table className="w-full text-sm">
                                                                                 <thead>
                                                                                                     <tr className="border-b border-zinc-800 bg-zinc-900/50 text-left text-xs uppercase tracking-wider text-zinc-500">
-                                                                                                                          <th className="px-4 py-2">Thesis</th>th>
-                                                                                                                          <th className="px-4 py-2">Direction</th>th>
-                                                                                                                          <th className="px-4 py-2">Final Prob</th>th>
-                                                                                                                          <th className="px-4 py-2">Brier</th>th>
-                                                                                                                          <th className="px-4 py-2">Result</th>th>
-                                                                                                                          <th className="px-4 py-2">Resolved</th>th>
-                                                                                                      </tr>tr>
-                                                                                </thead>thead>
+                                                                                                                          <th className="px-4 py-2">Thesis</th>
+                                                                                                                          <th className="px-4 py-2">Direction</th>
+                                                                                                                          <th className="px-4 py-2">Final Prob</th>
+                                                                                                                          <th className="px-4 py-2">Brier</th>
+                                                                                                                          <th className="px-4 py-2">Result</th>
+                                                                                                                          <th className="px-4 py-2">Resolved</th>
+                                                                                                      </tr>
+                                                                                </thead>
                                                                                 <tbody>
                                                                                   {resolvedTheses.map((t) => (
                                                         <tr
@@ -201,24 +201,24 @@ export default async function LogPage({
                                                                                 >
                                                                                 <td className="px-4 py-2 text-zinc-300 max-w-xs truncate">
                                                                                   {t.title}
-                                                                                  </td>td>
+                                                                                  </td>
                                                                                 <td
                                                                                                             className={`px-4 py-2 font-medium uppercase ${
                                                                                                                                           directionColor[t.direction] || "text-zinc-400"
                                                                                                               }`}
                                                                                                           >
                                                                                   {t.direction}
-                                                                                  </td>td>
+                                                                                  </td>
                                                                                 <td className="px-4 py-2 text-zinc-300">
                                                                                   {t.finalProbability != null
                                                                                                                 ? `${(t.finalProbability * 100).toFixed(0)}%`
                                                                                                                 : "\u2014"}
-                                                                                  </td>td>
+                                                                                  </td>
                                                                                 <td className="px-4 py-2 text-zinc-400">
                                                                                   {t.brierScore != null
                                                                                                                 ? t.brierScore.toFixed(3)
                                                                                                                 : "\u2014"}
-                                                                                  </td>td>
+                                                                                  </td>
                                                                                 <td className="px-4 py-2">
                                                                                                           <span
                                                                                                                                         className={`text-xs font-medium ${
@@ -230,21 +230,21 @@ export default async function LogPage({
                                                                                                             {t.status === "resolved_correct"
                                                                                                                                             ? "Correct \u2713"
                                                                                                                                             : "Incorrect \u2717"}
-                                                                                                            </span>span>
-                                                                                  </td>td>
+                                                                                                            </span>
+                                                                                  </td>
                                                                                 <td className="px-4 py-2 text-zinc-500 text-xs">
                                                                                   {t.resolvedAt
                                                                                                                 ? new Date(t.resolvedAt).toLocaleDateString()
                                                                                                                 : "\u2014"}
-                                                                                  </td>td>
-                                                        </tr>tr>
+                                                                                  </td>
+                                                        </tr>
                                                       ))}
-                                                                                </tbody>tbody>
-                                                              </table>table>
-                                              </div>div>
-                                </div>div>
+                                                                                </tbody>
+                                                              </table>
+                                              </div>
+                                </div>
                             )}
-                  </>>
+                  </>
                 )}
         
           {activeTab === "snapshots" && (
@@ -253,7 +253,7 @@ export default async function LogPage({
                                 <div className="rounded-lg border border-zinc-800 p-8 text-center">
                                               <p className="text-sm text-zinc-500">
                                                               No probability snapshots yet.
-                                              </p>p>
+                                              </p>
                                               <p className="mt-2 text-xs text-zinc-600">
                                                               Use{" "}
                                                               <Link
@@ -261,23 +261,23 @@ export default async function LogPage({
                                                                                   className="text-blue-400 hover:underline"
                                                                                 >
                                                                                 Compute Probabilities
-                                                              </Link>Link>{" "}
+                                                              </Link>{" "}
                                                               to generate thesis probability snapshots.
-                                              </p>p>
-                                </div>div>
+                                              </p>
+                                </div>
                               ) : (
                                 <div className="overflow-hidden rounded-lg border border-zinc-800">
                                               <table className="w-full text-sm">
                                                               <thead>
                                                                                 <tr className="border-b border-zinc-800 bg-zinc-900/50 text-left text-xs uppercase tracking-wider text-zinc-500">
-                                                                                                    <th className="px-4 py-2">Date</th>th>
-                                                                                                    <th className="px-4 py-2">Thesis</th>th>
-                                                                                                    <th className="px-4 py-2">Direction</th>th>
-                                                                                                    <th className="px-4 py-2">Probability</th>th>
-                                                                                                    <th className="px-4 py-2">Momentum</th>th>
-                                                                                                    <th className="px-4 py-2">Signals</th>th>
-                                                                                </tr>tr>
-                                                              </thead>thead>
+                                                                                                    <th className="px-4 py-2">Date</th>
+                                                                                                    <th className="px-4 py-2">Thesis</th>
+                                                                                                    <th className="px-4 py-2">Direction</th>
+                                                                                                    <th className="px-4 py-2">Probability</th>
+                                                                                                    <th className="px-4 py-2">Momentum</th>
+                                                                                                    <th className="px-4 py-2">Signals</th>
+                                                                                </tr>
+                                                              </thead>
                                                               <tbody>
                                                                 {snapshots.map((s) => (
                                                       <tr
@@ -286,25 +286,25 @@ export default async function LogPage({
                                                                             >
                                                                             <td className="px-4 py-2 text-zinc-500 text-xs">
                                                                               {new Date(s.computedAt).toLocaleString()}
-                                                                            </td>td>
+                                                                            </td>
                                                                             <td className="px-4 py-2">
                                                                                                     <Link
                                                                                                                                 href="/predictions"
                                                                                                                                 className="text-zinc-300 hover:text-white hover:underline"
                                                                                                                               >
                                                                                                       {s.thesisTitle}
-                                                                                                      </Link>Link>
-                                                                            </td>td>
+                                                                                                      </Link>
+                                                                            </td>
                                                                             <td
                                                                                                       className={`px-4 py-2 font-medium uppercase text-xs ${
                                                                                                                                   directionColor[s.thesisDirection] || "text-zinc-400"
                                                                                                         }`}
                                                                                                     >
                                                                               {s.thesisDirection}
-                                                                            </td>td>
+                                                                            </td>
                                                                             <td className="px-4 py-2 text-zinc-300">
                                                                               {(s.probability * 100).toFixed(1)}%
-                                                                            </td>td>
+                                                                            </td>
                                                                             <td className="px-4 py-2">
                                                                               {s.momentum != null ? (
                                                                                                         <span
@@ -318,22 +318,22 @@ export default async function LogPage({
                                                                                                                                     >
                                                                                                           {s.momentum > 0 ? "+" : ""}
                                                                                                           {(s.momentum * 100).toFixed(1)}%
-                                                                                                          </span>span>
+                                                                                                          </span>
                                                                                                       ) : (
-                                                                                                        <span className="text-xs text-zinc-600">\u2014</span>span>
+                                                                                                        <span className="text-xs text-zinc-600">\u2014</span>
                                                                                                     )}
-                                                                            </td>td>
+                                                                            </td>
                                                                             <td className="px-4 py-2 text-zinc-400">
                                                                               {s.signalCount}
-                                                                            </td>td>
-                                                      </tr>tr>
+                                                                            </td>
+                                                      </tr>
                                                     ))}
-                                                              </tbody>tbody>
-                                              </table>table>
-                                </div>div>
+                                                              </tbody>
+                                              </table>
+                                </div>
                             )}
-                  </>>
+                  </>
                 )}
-        </div>div>
+        </div>
       );
 }</></></div>
