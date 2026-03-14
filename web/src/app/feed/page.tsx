@@ -44,6 +44,8 @@ export default function FeedPage() {
   const [fetchResult, setFetchResult] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [processResult, setProcessResult] = useState<string | null>(null);
+  const [runningPipeline, setRunningPipeline] = useState(false);
+  const [pipelineResult, setPipelineResult] = useState<string | null>(null);
 
   const loadFeed = useCallback(async () => {
     try {
@@ -96,6 +98,33 @@ export default function FeedPage() {
     }
   }
 
+  async function handleRunPipeline() {
+    setRunningPipeline(true);
+    setPipelineResult(null);
+    try {
+      const res = await fetch("/api/cron");
+      const data = await res.json();
+      if (!data.ok) {
+        setPipelineResult("Pipeline failed.");
+      } else {
+        const steps = (data.pipeline as Array<Record<string, unknown>>) || [];
+        const fetchStep = steps.find((s) => s.step === "fetch");
+        const ingestStep = steps.find((s) => s.step === "ingest");
+        const probStep = steps.find((s) => s.step === "probabilities");
+        const parts: string[] = [];
+        if (fetchStep && !fetchStep.error) parts.push(`${fetchStep.inserted ?? 0} new articles`);
+        if (ingestStep && !ingestStep.error) parts.push(`${ingestStep.processed ?? 0} processed`);
+        if (probStep && !probStep.error) parts.push(`${probStep.updated ?? probStep.probabilitiesUpdated ?? 0} probabilities updated`);
+        setPipelineResult(`Pipeline complete: ${parts.join(", ") || "done"}.`);
+      }
+      await loadFeed();
+    } catch {
+      setPipelineResult("Error running pipeline.");
+    } finally {
+      setRunningPipeline(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -108,20 +137,28 @@ export default function FeedPage() {
         <div className="flex flex-col items-end gap-2">
           <div className="flex gap-2">
             <button
+              onClick={handleRunPipeline}
+              disabled={runningPipeline || fetching || processing}
+              className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40 transition-colors"
+            >
+              {runningPipeline ? "Running pipeline..." : "Run Full Pipeline"}
+            </button>
+            <button
               onClick={handleFetch}
-              disabled={fetching}
+              disabled={fetching || runningPipeline}
               className="rounded-md bg-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-600 disabled:opacity-40 transition-colors"
             >
-              {fetching ? "Fetching RSS..." : "↓ Fetch RSS"}
+              {fetching ? "Fetching RSS..." : "Fetch RSS"}
             </button>
             <button
               onClick={handleIngest}
-              disabled={processing || unprocessedCount === 0}
+              disabled={processing || unprocessedCount === 0 || runningPipeline}
               className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium hover:bg-blue-600 disabled:opacity-40 transition-colors"
             >
-              {processing ? "Processing..." : `⚡ Process ${unprocessedCount} Unprocessed`}
+              {processing ? "Processing..." : `Process ${unprocessedCount} Unprocessed`}
             </button>
           </div>
+          {pipelineResult && <span className="text-xs text-emerald-400">{pipelineResult}</span>}
           {fetchResult && <span className="text-xs text-zinc-400">{fetchResult}</span>}
           {processResult && <span className="text-xs text-zinc-400">{processResult}</span>}
         </div>
