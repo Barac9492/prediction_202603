@@ -109,26 +109,35 @@ export async function POST(req: NextRequest) {
         throw new Error("Claude returned no text content");
       }
       const cleanedRaw = stripCodeFences(block.text);
-      let parsed: Record<string, unknown>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let parsed: any;
       try {
         parsed = JSON.parse(cleanedRaw);
       } catch (e) {
         throw new Error(`Failed to parse Claude response: ${e instanceof Error ? e.message : e}`);
       }
 
+      const aiRelevance = Number(parsed.ai_relevance ?? 0);
+      const sentiment = String(parsed.sentiment ?? "neutral");
+      const entities: string[] = Array.isArray(parsed.entities) ? parsed.entities : [];
+      const thesisConns: Array<{ thesis_id: number; relation: string; direction: string; confidence: number; reasoning: string }> =
+        Array.isArray(parsed.thesis_connections) ? parsed.thesis_connections : [];
+      const thesisInteractions: Array<{ thesis_a_id: number; thesis_b_id: number; relation: string; confidence: number; reasoning: string }> =
+        Array.isArray(parsed.thesis_interactions) ? parsed.thesis_interactions : [];
+
       // 3. Mark as processed with extracted metadata
       await markNewsProcessed(event.id, {
-        aiRelevance: parsed.ai_relevance,
-        sentiment: parsed.sentiment,
-        extractedEntities: parsed.entities || [],
-        extractedThesisIds: (parsed.thesis_connections || [])
-          .filter((tc: { relation: string }) => tc.relation !== "UNRELATED")
-          .map((tc: { thesis_id: number }) => tc.thesis_id),
+        aiRelevance,
+        sentiment,
+        extractedEntities: entities,
+        extractedThesisIds: thesisConns
+          .filter((tc) => tc.relation !== "UNRELATED")
+          .map((tc) => tc.thesis_id),
       });
 
       // 4. Create graph connections for relevant theses
       const { createConnection } = await import("@/lib/db/graph-queries");
-      for (const tc of parsed.thesis_connections || []) {
+      for (const tc of thesisConns) {
         if (tc.relation === "UNRELATED") continue;
         await createConnection({
           fromType: "news_event",
@@ -144,7 +153,7 @@ export async function POST(req: NextRequest) {
       }
 
       // 5. Create thesis<->thesis interactions
-      for (const ti of parsed.thesis_interactions || []) {
+      for (const ti of thesisInteractions) {
         if (!ti.thesis_a_id || !ti.thesis_b_id) continue;
         await upsertThesisInteraction({
           thesisAId: ti.thesis_a_id,
@@ -159,12 +168,10 @@ export async function POST(req: NextRequest) {
       results.push({
         id: event.id,
         title: event.title,
-        aiRelevance: parsed.ai_relevance,
-        sentiment: parsed.sentiment,
-        connections: (parsed.thesis_connections || []).filter(
-          (tc: { relation: string }) => tc.relation !== "UNRELATED"
-        ).length,
-        thesisInteractions: (parsed.thesis_interactions || []).length,
+        aiRelevance,
+        sentiment,
+        connections: thesisConns.filter((tc) => tc.relation !== "UNRELATED").length,
+        thesisInteractions: thesisInteractions.length,
       });
     } catch (err) {
       console.error(`Failed to process news event ${event.id}:`, err);
