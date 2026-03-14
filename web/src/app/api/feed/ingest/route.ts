@@ -129,7 +129,8 @@ export async function POST(req: NextRequest) {
         throw new Error("Claude returned no text content");
       }
       const cleanedRaw = stripCodeFences(block.text);
-      let parsed: Record<string, unknown>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let parsed: Record<string, any>;
       try {
         parsed = JSON.parse(cleanedRaw);
       } catch (e) {
