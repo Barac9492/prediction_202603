@@ -9,13 +9,24 @@ const AI_RSS_FEEDS = [
   { url: "https://techcrunch.com/category/artificial-intelligence/feed/", source: "TechCrunch AI" },
   { url: "https://venturebeat.com/category/ai/feed/", source: "VentureBeat AI" },
   { url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", source: "The Verge AI" },
+  { url: "https://arstechnica.com/ai/feed/", source: "Ars Technica AI" },
+  { url: "https://www.wired.com/feed/tag/ai/latest/rss", source: "WIRED AI" },
   // Research
   { url: "https://blog.research.google/atom.xml", source: "Google Research" },
   { url: "https://openai.com/blog/rss/", source: "OpenAI Blog" },
   { url: "https://www.anthropic.com/rss.xml", source: "Anthropic Blog" },
+  { url: "https://ai.meta.com/blog/rss/", source: "Meta AI" },
+  { url: "https://machinelearning.apple.com/rss.xml", source: "Apple ML" },
+  // Research aggregators
+  { url: "https://arxiv.org/rss/cs.AI", source: "arXiv cs.AI" },
+  { url: "https://arxiv.org/rss/cs.LG", source: "arXiv cs.LG" },
   // Finance / VC
   { url: "https://a16z.com/feed/", source: "a16z" },
   { url: "https://www.sequoiacap.com/feed/", source: "Sequoia" },
+  { url: "https://www.bloomberg.com/feeds/technology.rss", source: "Bloomberg Tech" },
+  // Semiconductor / Compute
+  { url: "https://www.anandtech.com/rss/", source: "AnandTech" },
+  { url: "https://www.tomshardware.com/feeds/all", source: "Tom's Hardware" },
   // Hacker News best-of (unofficial)
   { url: "https://hnrss.org/frontpage?q=AI+OR+LLM+OR+GPT+OR+model&count=20", source: "HN AI" },
   { url: "https://hnrss.org/frontpage?q=NVIDIA+OR+OpenAI+OR+Anthropic+OR+investment&count=10", source: "HN Invest" },
@@ -27,6 +38,15 @@ const AI_KEYWORDS = [
   "model", "transformer", "foundation model", "agi", "generative", "chatgpt",
   "copilot", "agent", "rag", "fine-tun", "training", "compute", "data center",
   "accelerat", "semiconductor", "chip", "mlops", "vector", "embedding",
+  // Expanded: companies and products
+  "mistral", "meta ai", "llama", "stable diffusion", "midjourney", "hugging face",
+  "cohere", "databricks", "snowflake ai", "microsoft ai", "google ai",
+  // Expanded: market and regulatory
+  "ai regulation", "ai safety", "ai governance", "ai act", "executive order",
+  "compute cluster", "tpu", "h100", "b200", "blackwell", "ai chip",
+  // Expanded: investment signals
+  "funding round", "series a", "series b", "ipo", "acquisition", "valuation",
+  "revenue", "arpu", "market cap",
 ];
 
 function stripHtml(text: string): string {

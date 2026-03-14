@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import Link from "next/link";
-import { listPredictions } from "@/lib/db/queries";
+import { listPredictions, listStalePredictions } from "@/lib/db/queries";
 
 const directionColor: Record<string, string> = {
   bullish: "text-green-400",
@@ -15,10 +15,49 @@ export default async function LogPage({
 }) {
   const { filter } = await searchParams;
   const f = (filter as "all" | "pending" | "resolved") || "all";
-  const preds = await listPredictions(f);
+  const [preds, stale] = await Promise.all([
+    listPredictions(f),
+    listStalePredictions(7, 5),
+  ]);
 
   return (
     <div className="space-y-6">
+      {/* Resolution nudge banner */}
+      {stale.length > 0 && (
+        <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-amber-400">
+                {stale.length} prediction{stale.length > 1 ? "s" : ""} awaiting resolution
+              </h3>
+              <p className="text-xs text-amber-400/70 mt-0.5">
+                Recording outcomes improves calibration accuracy and strengthens the knowledge graph.
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {stale.map((p) => (
+              <Link
+                key={p.id}
+                href={`/predictions/${p.id}`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-800/50 bg-amber-900/30 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-900/50 transition-colors"
+              >
+                <span className={`font-medium uppercase ${directionColor[p.direction] || ""}`}>
+                  {p.direction}
+                </span>
+                <span className="text-amber-400/60">|</span>
+                <span className="truncate max-w-[200px]">{p.topic}</span>
+                <span className="text-amber-600 text-[10px]">
+                  {p.createdAt
+                    ? `${Math.floor((Date.now() - new Date(p.createdAt).getTime()) / 86400000)}d ago`
+                    : ""}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Prediction Log</h1>
         <div className="flex gap-1">
