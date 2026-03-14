@@ -3,18 +3,20 @@ import {
   listSignalClusters,
   listNewsEvents,
   getUncoveredEntities,
+  listRecommendations,
 } from "@/lib/db/graph-queries";
 import { HomeGrid } from "@/components/home-grid";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [theses, activeClusters, recentNews, uncoveredEntities] =
+  const [theses, activeClusters, recentNews, uncoveredEntities, activeRecs] =
     await Promise.all([
       getCurrentProbabilities(),
       listSignalClusters("active"),
       listNewsEvents({ limit: 5 }),
       getUncoveredEntities(),
+      listRecommendations({ status: "active", limit: 5 }),
     ]);
 
   // Sort by absolute momentum for trending
@@ -39,6 +41,7 @@ export default async function Home() {
       recentNews={recentNews}
       activeClusters={activeClusters}
       uncoveredEntities={uncoveredEntities}
+      activeRecs={activeRecs}
     />
   );
 }
