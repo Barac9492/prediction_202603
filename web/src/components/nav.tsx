@@ -7,7 +7,9 @@ const links = [
   { href: "/overview", label: "Overview" },
   { href: "/thesis", label: "Theses" },
   { href: "/graph", label: "Graph" },
-  { href: "/track-record", label: "Performance" },
+  { href: "/performance", label: "Performance" },
+  { href: "/portfolio", label: "Portfolio" },
+  { href: "/track-record", label: "Calibration" },
   { href: "/ops", label: "Operations" },
 ];
 

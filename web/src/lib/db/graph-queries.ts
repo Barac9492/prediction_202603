@@ -8,6 +8,7 @@ import {
   entityObservations,
   signalClusters,
   recommendations,
+  priceSnapshots,
 } from "./schema";
 import { eq, desc, and, sql, lte } from "drizzle-orm";
 
@@ -656,6 +657,8 @@ export async function insertRecommendation(data: {
   deadline: Date;
   rationale: string;
   probabilityAtCreation?: number;
+  ticker?: string;
+  priceAtCreation?: number;
 }) {
   const [rec] = await db.insert(recommendations).values(data).returning();
   return rec;
@@ -700,6 +703,8 @@ export async function resolveRecommendation(
     outcomeNotes?: string;
     brierScore?: number;
     probabilityAtResolution?: number;
+    priceAtResolution?: number;
+    actualReturn?: number;
   }
 ) {
   const [updated] = await db
@@ -708,6 +713,39 @@ export async function resolveRecommendation(
     .where(eq(recommendations.id, id))
     .returning();
   return updated;
+}
+
+export async function getRecommendation(id: number) {
+  const [rec] = await db
+    .select()
+    .from(recommendations)
+    .where(eq(recommendations.id, id));
+  return rec ?? null;
+}
+
+export async function getNewsEventsByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  return db
+    .select()
+    .from(newsEvents)
+    .where(sql`${newsEvents.id} IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`);
+}
+
+export async function getEntitiesByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  return db
+    .select()
+    .from(entities)
+    .where(sql`${entities.id} IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`);
+}
+
+export async function insertPriceSnapshot(data: {
+  ticker: string;
+  price: number;
+  volume?: number;
+}) {
+  const [snap] = await db.insert(priceSnapshots).values(data).returning();
+  return snap;
 }
 
 export async function getActiveRecommendationForAsset(

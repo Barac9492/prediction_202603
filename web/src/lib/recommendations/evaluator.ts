@@ -4,6 +4,7 @@ import {
   resolveRecommendation,
 } from "@/lib/db/graph-queries";
 import { getCurrentProbabilities } from "@/lib/db/probability";
+import { fetchPrice } from "@/lib/markets/yahoo";
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-20250514";
 
@@ -12,11 +13,13 @@ interface EvaluationResult {
   status: string;
   brierScore: number;
   outcomeNotes: string;
+  actualReturn?: number;
 }
 
 /**
  * Evaluate all expired recommendations.
- * Uses LLM to judge outcome based on current thesis state and signals.
+ * Uses real price data for BUY/SELL/AVOID recs with tickers.
+ * Falls back to LLM for HOLD/WATCH or recs without tickers.
  * Computes Brier score: (conviction - outcome)^2
  */
 export async function evaluateExpiredRecs(): Promise<{
@@ -37,7 +40,60 @@ export async function evaluateExpiredRecs(): Promise<{
 
   for (const rec of expired) {
     const thesisProb = rec.thesisId ? probMap.get(rec.thesisId) : null;
+    const hasPriceData = rec.ticker && rec.priceAtCreation;
+    const isPriceAction = ["BUY", "SELL", "AVOID"].includes(rec.action);
 
+    // Price-based evaluation for BUY/SELL/AVOID with ticker data
+    if (hasPriceData && isPriceAction) {
+      let priceAtResolution: number | undefined;
+      try {
+        const priceData = await fetchPrice(rec.ticker!);
+        if (priceData) {
+          priceAtResolution = priceData.price;
+        }
+      } catch (err) {
+        console.error(`Price fetch failed for ${rec.ticker}:`, err);
+      }
+
+      if (priceAtResolution !== undefined) {
+        const actualReturn =
+          (priceAtResolution - rec.priceAtCreation!) / rec.priceAtCreation!;
+
+        let correct: boolean;
+        if (rec.action === "BUY") {
+          correct = actualReturn > 0;
+        } else {
+          // SELL or AVOID: correct if price went down
+          correct = actualReturn < 0;
+        }
+
+        const outcome = correct ? 1 : 0;
+        const brierScore = Math.pow(rec.conviction - outcome, 2);
+        const status = correct ? "resolved_correct" : "resolved_incorrect";
+        const returnPct = (actualReturn * 100).toFixed(2);
+        const outcomeNotes = `${rec.ticker}: $${rec.priceAtCreation!.toFixed(2)} → $${priceAtResolution.toFixed(2)} (${actualReturn > 0 ? "+" : ""}${returnPct}%)`;
+
+        await resolveRecommendation(rec.id, {
+          status,
+          outcomeNotes,
+          brierScore,
+          probabilityAtResolution: thesisProb?.probability,
+          priceAtResolution,
+          actualReturn,
+        });
+
+        results.push({
+          id: rec.id,
+          status,
+          brierScore,
+          outcomeNotes,
+          actualReturn,
+        });
+        continue;
+      }
+    }
+
+    // LLM fallback for HOLD/WATCH or recs without price data
     const response = await client.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 500,

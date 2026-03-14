@@ -207,8 +207,26 @@ export const recommendations = pgTable("recommendations", {
   resolvedAt: timestamp("resolved_at"),
   probabilityAtCreation: real("probability_at_creation"),
   probabilityAtResolution: real("probability_at_resolution"),
+  ticker: text("ticker"),
+  priceAtCreation: real("price_at_creation"),
+  priceAtResolution: real("price_at_resolution"),
+  actualReturn: real("actual_return"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// — price snapshots ——————————————————————————————————————————
+
+export const priceSnapshots = pgTable(
+  "price_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    ticker: text("ticker").notNull(),
+    price: real("price").notNull(),
+    volume: real("volume"),
+    capturedAt: timestamp("captured_at").notNull().defaultNow(),
+  },
+  (t) => [index("price_snapshots_ticker_time_idx").on(t.ticker, t.capturedAt)]
+);
 
 // — probability tracking ——————————————————————————————————————————
 export const thesisProbabilitySnapshots = pgTable(

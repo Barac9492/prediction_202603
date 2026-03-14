@@ -5,6 +5,7 @@ import {
   getActiveRecommendationForAsset,
   listRecommendations,
 } from "@/lib/db/graph-queries";
+import { resolveTickerSymbol, fetchPrice } from "@/lib/markets/yahoo";
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-20250514";
 
@@ -108,6 +109,21 @@ Respond with ONLY the JSON array, no other text.`,
     const deadline = new Date();
     deadline.setDate(deadline.getDate() + rec.timeframeDays);
 
+    // Resolve ticker and capture entry price
+    let ticker: string | null = null;
+    let priceAtCreation: number | undefined;
+    try {
+      ticker = await resolveTickerSymbol(rec.asset);
+      if (ticker) {
+        const priceData = await fetchPrice(ticker);
+        if (priceData) {
+          priceAtCreation = priceData.price;
+        }
+      }
+    } catch (err) {
+      console.error(`Price lookup failed for "${rec.asset}":`, err);
+    }
+
     const inserted = await insertRecommendation({
       thesisId: rec.thesisId,
       action: rec.action,
@@ -117,6 +133,8 @@ Respond with ONLY the JSON array, no other text.`,
       deadline,
       rationale: rec.rationale,
       probabilityAtCreation: thesis?.probability,
+      ticker: ticker ?? undefined,
+      priceAtCreation,
     });
 
     created.push(inserted);

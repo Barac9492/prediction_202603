@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { GenerateRecsPanel } from "./generate-recs-panel";
+import { ProvenanceDrawer } from "./provenance-drawer";
+import { PriceDisplay } from "./price-display";
 
 type Recommendation = {
   id: number;
@@ -18,6 +20,10 @@ type Recommendation = {
   resolvedAt: Date | null;
   probabilityAtCreation: number | null;
   probabilityAtResolution: number | null;
+  ticker: string | null;
+  priceAtCreation: number | null;
+  priceAtResolution: number | null;
+  actualReturn: number | null;
   createdAt: Date;
 };
 
@@ -140,6 +146,11 @@ export function RecommendationsLanding({
                     <span className="text-sm font-semibold text-pm-text-primary">
                       {rec.asset}
                     </span>
+                    {rec.ticker && (
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-pm-muted">
+                        {rec.ticker}
+                      </span>
+                    )}
                   </div>
 
                   {/* Thesis title inline */}
@@ -150,6 +161,16 @@ export function RecommendationsLanding({
                     >
                       {thesis.title}
                     </Link>
+                  )}
+
+                  {/* Live P&L */}
+                  {rec.ticker && rec.priceAtCreation && (
+                    <div className="mb-2">
+                      <PriceDisplay
+                        ticker={rec.ticker}
+                        entryPrice={rec.priceAtCreation}
+                      />
+                    </div>
                   )}
 
                   {/* Conviction gauge */}
@@ -178,9 +199,12 @@ export function RecommendationsLanding({
                   </div>
 
                   {/* Rationale */}
-                  <p className="line-clamp-3 text-sm text-pm-text-secondary">
+                  <p className="mb-3 line-clamp-3 text-sm text-pm-text-secondary">
                     {rec.rationale}
                   </p>
+
+                  {/* Provenance */}
+                  <ProvenanceDrawer recId={rec.id} />
                 </div>
               );
             })}
@@ -205,10 +229,22 @@ export function RecommendationsLanding({
                     Asset
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
+                    Ticker
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
                     Action
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
-                    Brier Score
+                    Entry
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
+                    Exit
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
+                    Return %
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
+                    Brier
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
                     Outcome
@@ -244,12 +280,38 @@ export function RecommendationsLanding({
                     <td className="px-4 py-2 font-medium text-pm-text-primary">
                       {rec.asset}
                     </td>
+                    <td className="px-4 py-2 text-xs text-pm-muted">
+                      {rec.ticker || "—"}
+                    </td>
                     <td className="px-4 py-2">
                       <span
                         className={`rounded-full border px-2 py-0.5 text-xs font-bold ${ACTION_BADGE[rec.action] || ACTION_BADGE.HOLD}`}
                       >
                         {rec.action}
                       </span>
+                    </td>
+                    <td className="px-4 py-2 tabular-nums text-pm-text-secondary">
+                      {rec.priceAtCreation !== null
+                        ? `$${rec.priceAtCreation.toFixed(2)}`
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-2 tabular-nums text-pm-text-secondary">
+                      {rec.priceAtResolution !== null
+                        ? `$${rec.priceAtResolution.toFixed(2)}`
+                        : "—"}
+                    </td>
+                    <td
+                      className={`px-4 py-2 tabular-nums ${
+                        rec.actualReturn !== null && rec.actualReturn > 0
+                          ? "text-pm-green font-medium"
+                          : rec.actualReturn !== null && rec.actualReturn < 0
+                            ? "text-pm-red font-medium"
+                            : "text-pm-text-secondary"
+                      }`}
+                    >
+                      {rec.actualReturn !== null
+                        ? `${rec.actualReturn > 0 ? "+" : ""}${(rec.actualReturn * 100).toFixed(2)}%`
+                        : "—"}
                     </td>
                     <td className="px-4 py-2 tabular-nums text-pm-text-primary">
                       {rec.brierScore !== null
