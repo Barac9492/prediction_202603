@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { listPredictions } from "@/lib/db/queries";
+import { listPredictions, listStalePredictions } from "@/lib/db/queries";
 import { listTheses } from "@/lib/db/graph-queries";
 import { db } from "@/lib/db/index";
 import { thesisProbabilitySnapshots, theses as thesesTable } from "@/lib/db/schema";
@@ -40,8 +40,9 @@ export default async function LogPage({
     const activeTab = tab === "snapshots" ? "snapshots" : "predictions";
     const f = (filter as "all" | "pending" | "resolved") || "all";
 
-  const [preds, snapshots, allTheses] = await Promise.all([
+  const [preds, stale, snapshots, allTheses] = await Promise.all([
         listPredictions(f),
+        listStalePredictions(7, 5),
         getRecentSnapshots(50),
         listTheses(),
       ]);
@@ -52,6 +53,42 @@ export default async function LogPage({
 
   return (
         <div className="space-y-6">
+              {/* Resolution nudge banner */}
+              {stale.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-700">
+                        {stale.length} prediction{stale.length > 1 ? "s" : ""} awaiting resolution
+                      </h3>
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        Recording outcomes improves calibration accuracy and strengthens the knowledge graph.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {stale.map((p) => (
+                      <Link
+                        key={p.id}
+                        href={`/predictions/${p.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition-colors"
+                      >
+                        <span className={`font-medium uppercase ${directionColor[p.direction] || ""}`}>
+                          {p.direction}
+                        </span>
+                        <span className="text-amber-400">|</span>
+                        <span className="truncate max-w-[200px]">{p.topic}</span>
+                        <span className="text-amber-500 text-[10px]">
+                          {p.createdAt
+                            ? `${Math.floor((Date.now() - new Date(p.createdAt).getTime()) / 86400000)}d ago`
+                            : ""}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                       <h1 className="text-2xl font-bold">Prediction Log</h1>
               </div>
@@ -59,7 +96,7 @@ export default async function LogPage({
           {/* Tab bar */}
               <div className="flex gap-1 border-b border-pm-border pb-2">
                       <Link
-                                  href="/log?tab=predictions"
+                                  href="/predictions?tab=predictions"
                                   className={`rounded-t-md px-4 py-2 text-sm font-medium ${
                                                 activeTab === "predictions"
                                                   ? "bg-pm-bg-search text-pm-text-primary"
@@ -69,7 +106,7 @@ export default async function LogPage({
                                 Analysis Predictions ({preds.length})
                       </Link>
                       <Link
-                                  href="/log?tab=snapshots"
+                                  href="/predictions?tab=snapshots"
                                   className={`rounded-t-md px-4 py-2 text-sm font-medium ${
                                                 activeTab === "snapshots"
                                                   ? "bg-pm-bg-search text-pm-text-primary"
@@ -87,7 +124,7 @@ export default async function LogPage({
                               {(["all", "pending", "resolved"] as const).map((v) => (
                                   <Link
                                                     key={v}
-                                                    href={`/log?tab=predictions&filter=${v}`}
+                                                    href={`/predictions?tab=predictions&filter=${v}`}
                                                     className={`rounded-md px-3 py-1 text-sm capitalize ${
                                                                         f === v
                                                                           ? "bg-pm-bg-search text-pm-text-primary"
