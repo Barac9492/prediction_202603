@@ -27,6 +27,8 @@ export const predictions = pgTable("predictions", {
   actualOutcome: text("actual_outcome"),
   outcomeNotes: text("outcome_notes"),
   resolvedAt: timestamp("resolved_at"),
+  deadline: timestamp("deadline"),
+  resolutionCriteria: text("resolution_criteria"),
 });
 
 export const signals = pgTable("signals", {
@@ -76,6 +78,12 @@ export const theses = pgTable("theses", {
   isActive: boolean("is_active").notNull().default(true),
   status: text("status").notNull().default("active"),
   aiRationale: text("ai_rationale"),
+  deadline: timestamp("deadline"),
+  resolutionCriteria: text("resolution_criteria"),
+  resolutionSource: text("resolution_source"),
+  resolvedAt: timestamp("resolved_at"),
+  finalProbability: real("final_probability"),
+  brierScore: real("brier_score"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

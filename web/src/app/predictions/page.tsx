@@ -1,253 +1,339 @@
-"use client";
+export const dynamic = "force-dynamic";
 
-import { useEffect, useState, useCallback } from "react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import Link from "next/link";
+import { listPredictions } from "@/lib/db/queries";
+import { listTheses } from "@/lib/db/graph-queries";
+import { db } from "@/lib/db/index";
+import { thesisProbabilitySnapshots, theses as thesesTable } from "@/lib/db/schema";
+import { desc, eq } from "drizzle-orm";
 
-interface Snapshot {
-  id: number;
-  thesisId: number;
-  probability: number;
-  bullishWeight: number;
-  bearishWeight: number;
-  neutralWeight: number;
-  signalCount: number;
-  momentum: number | null;
-  computedAt: string;
+const directionColor: Record<string, string> = {
+    bullish: "text-green-400",
+    bearish: "text-red-400",
+    neutral: "text-yellow-400",
+};
+
+async function getRecentSnapshots(limit = 30) {
+    return db
+      .select({
+              id: thesisProbabilitySnapshots.id,
+              thesisId: thesisProbabilitySnapshots.thesisId,
+              probability: thesisProbabilitySnapshots.probability,
+              momentum: thesisProbabilitySnapshots.momentum,
+              signalCount: thesisProbabilitySnapshots.signalCount,
+              computedAt: thesisProbabilitySnapshots.computedAt,
+              thesisTitle: thesesTable.title,
+              thesisDirection: thesesTable.direction,
+      })
+      .from(thesisProbabilitySnapshots)
+      .innerJoin(thesesTable, eq(thesisProbabilitySnapshots.thesisId, thesesTable.id))
+      .orderBy(desc(thesisProbabilitySnapshots.computedAt))
+      .limit(limit);
 }
 
-interface Thesis {
-  id: number;
-  title: string;
-  description: string | null;
-  direction: string | null;
-  tags: string[] | null;
-  isActive: boolean;
-}
+export default async function LogPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ filter?: string; tab?: string }>;
+}) {
+    const { filter, tab } = await searchParams;
+    const activeTab = tab === "snapshots" ? "snapshots" : "predictions";
+    const f = (filter as "all" | "pending" | "resolved") || "all";
 
-interface ThesisWithProbability extends Thesis {
-  latestSnapshot: Snapshot | null;
-  history: Snapshot[];
-}
+  const [preds, snapshots, allTheses] = await Promise.all([
+        listPredictions(f),
+        getRecentSnapshots(50),
+        listTheses(),
+      ]);
 
-function getProbabilityColor(prob: number): string {
-  if (prob >= 0.65) return "#22c55e";
-  if (prob >= 0.35) return "#eab308";
-  return "#ef4444";
-}
-
-function getProbabilityLabel(prob: number): string {
-  if (prob >= 0.75) return "Strong Bull";
-  if (prob >= 0.55) return "Bullish";
-  if (prob >= 0.45) return "Neutral";
-  if (prob >= 0.25) return "Bearish";
-  return "Strong Bear";
-}
-
-function MomentumBadge({ momentum }: { momentum: number | null }) {
-  if (momentum === null || momentum === 0) {
-    return <span className="text-gray-400 text-sm">no change</span>;
-  }
-  const isUp = momentum > 0;
-  const pct = Math.abs(Math.round(momentum * 100));
-  return (
-    <span className={`text-sm font-medium ${isUp ? "text-green-500" : "text-red-500"}`}>
-      {isUp ? "up" : "down"} {pct}%
-    </span>
-  );
-}
-
-function ProbabilityGauge({ probability }: { probability: number }) {
-  const pct = Math.round(probability * 100);
-  const color = getProbabilityColor(probability);
-  return (
-    <div className="flex flex-col items-center justify-center py-2">
-      <div className="text-5xl font-bold tabular-nums" style={{ color }}>
-        {pct}%
-      </div>
-      <div className="text-sm mt-1 font-medium" style={{ color }}>
-        {getProbabilityLabel(probability)}
-      </div>
-    </div>
-  );
-}
-
-function ThesisCard({ thesis }: { thesis: ThesisWithProbability }) {
-  const snap = thesis.latestSnapshot;
-  const history = thesis.history;
-  const prob = snap?.probability ?? 0.5;
-  const color = getProbabilityColor(prob);
-
-  const chartData = history.map((s) => ({
-    date: new Date(s.computedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-    probability: Math.round(s.probability * 100),
-  }));
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 text-base leading-snug">{thesis.title}</h3>
-          {thesis.description && (
-            <p className="text-gray-500 text-sm mt-1 line-clamp-2">{thesis.description}</p>
-          )}
-        </div>
-        {snap ? (
-          <div className="shrink-0"><ProbabilityGauge probability={prob} /></div>
-        ) : (
-          <div className="shrink-0 text-gray-400 text-sm py-2">No data yet</div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2 items-center">
-        {thesis.direction && (
-          <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-            style={{
-              background: thesis.direction === "bullish" ? "#dcfce7" : thesis.direction === "bearish" ? "#fee2e2" : "#f3f4f6",
-              color: thesis.direction === "bullish" ? "#16a34a" : thesis.direction === "bearish" ? "#dc2626" : "#6b7280",
-            }}>
-            {thesis.direction.charAt(0).toUpperCase() + thesis.direction.slice(1)}
-          </span>
-        )}
-        {(thesis.tags ?? []).map((tag) => (
-          <span key={tag} className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{tag}</span>
-        ))}
-        {snap && (
-          <span className="text-xs text-gray-400 ml-auto">{snap.signalCount} signal{snap.signalCount !== 1 ? "s" : ""}</span>
-        )}
-      </div>
-
-      {snap && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">Momentum:</span>
-          <MomentumBadge momentum={snap.momentum} />
-        </div>
-      )}
-
-      {chartData.length > 1 ? (
-        <div className="h-32">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id={"grad" + thesis.id} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={color} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-              <Tooltip
-                formatter={(value) => [String(value) + "%", "Probability"]}
-                contentStyle={{ fontSize: 12 }}
-              />
-              <Area type="monotone" dataKey="probability" stroke={color} strokeWidth={2} fill={"url(#grad" + thesis.id + ")"} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <div className="h-20 flex items-center justify-center text-gray-400 text-sm border border-dashed border-gray-200 rounded-lg">
-          {chartData.length === 1 ? "Run compute again to see trend" : "No probability data yet"}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function PredictionsPage() {
-  const [theses, setTheses] = useState<ThesisWithProbability[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [computing, setComputing] = useState(false);
-  const [lastComputed, setLastComputed] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/theses");
-      if (!res.ok) throw new Error("Failed to fetch theses");
-      const all: Thesis[] = await res.json();
-      const active = all.filter((t) => t.isActive);
-      const withHistory = await Promise.all(
-        active.map(async (t) => {
-          try {
-            const hr = await fetch("/api/theses/" + t.id + "/probability");
-            const history: Snapshot[] = hr.ok ? await hr.json() : [];
-            return { ...t, latestSnapshot: history.length > 0 ? history[history.length - 1] : null, history };
-          } catch {
-            return { ...t, latestSnapshot: null, history: [] };
-          }
-        })
+  const resolvedTheses = allTheses.filter(
+        (t) => t.status?.startsWith("resolved_")
       );
-      withHistory.sort((a, b) => (b.latestSnapshot?.probability ?? 0) - (a.latestSnapshot?.probability ?? 0));
-      setTheses(withHistory);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  const handleCompute = async () => {
-    setComputing(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/theses/compute-probabilities", { method: "POST" });
-      if (!res.ok) throw new Error("Compute failed");
-      const data = await res.json();
-      setLastComputed(new Date().toLocaleTimeString() + " (" + data.computed + " theses)");
-      await fetchData();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setComputing(false);
-    }
-  };
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Probability Tracker</h1>
-          <p className="text-gray-500 text-sm mt-1">News-signal weighted probability for each active thesis</p>
+        <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                      <h1 className="text-2xl font-bold">Prediction Log</h1>
+              </div>
+        
+          {/* Tab bar */}
+              <div className="flex gap-1 border-b border-zinc-800 pb-2">
+                      <Link
+                                  href="/log?tab=predictions"
+                                  className={`rounded-t-md px-4 py-2 text-sm font-medium ${
+                                                activeTab === "predictions"
+                                                  ? "bg-zinc-800 text-white"
+                                                  : "text-zinc-500 hover:text-white"
+                                  }`}
+                                >
+                                Analysis Predictions ({preds.length})
+                      </Link>
+                      <Link
+                                  href="/log?tab=snapshots"
+                                  className={`rounded-t-md px-4 py-2 text-sm font-medium ${
+                                                activeTab === "snapshots"
+                                                  ? "bg-zinc-800 text-white"
+                                                  : "text-zinc-500 hover:text-white"
+                                  }`}
+                                >
+                                Probability Snapshots ({snapshots.length})
+                      </Link>
+              </div>
+        
+          {activeTab === "predictions" && (
+                  <>
+                    {/* Filter pills */}
+                            <div className="flex gap-1">
+                              {(["all", "pending", "resolved"] as const).map((v) => (
+                                  <Link
+                                                    key={v}
+                                                    href={`/log?tab=predictions&filter=${v}`}
+                                                    className={`rounded-md px-3 py-1 text-sm capitalize ${
+                                                                        f === v
+                                                                          ? "bg-zinc-800 text-white"
+                                                                          : "text-zinc-500 hover:text-white"
+                                                    }`}
+                                                  >
+                                    {v}
+                                  </Link>
+                                ))}
+                            </div>
+                  
+                    {preds.length === 0 ? (
+                                <div className="rounded-lg border border-zinc-800 p-8 text-center">
+                                              <p className="text-sm text-zinc-500">
+                                                              No analysis predictions yet.
+                                              </p>
+                                              <p className="mt-2 text-xs text-zinc-600">
+                                                              Use the{" "}
+                                                              <Link href="/analyze" className="text-blue-400 hover:underline">
+                                                                                Analyze
+                                                              </Link>{" "}
+                                                              page to create signal-based predictions from URLs and text.
+                                              </p>
+                                </div>
+                              ) : (
+                                <div className="overflow-hidden rounded-lg border border-zinc-800">
+                                              <table className="w-full text-sm">
+                                                              <thead>
+                                                                                <tr className="border-b border-zinc-800 bg-zinc-900/50 text-left text-xs uppercase tracking-wider text-zinc-500">
+                                                                                                    <th className="px-4 py-2">ID</th>
+                                                                                                    <th className="px-4 py-2">Date</th>
+                                                                                                    <th className="px-4 py-2">Topic</th>
+                                                                                                    <th className="px-4 py-2">Direction</th>
+                                                                                                    <th className="px-4 py-2">Confidence</th>
+                                                                                                    <th className="px-4 py-2">Outcome</th>
+                                                                                </tr>
+                                                              </thead>
+                                                              <tbody>
+                                                                {preds.map((p) => (
+                                                      <tr
+                                                                              key={p.id}
+                                                                              className="border-b border-zinc-800/50 hover:bg-zinc-900/30"
+                                                                            >
+                                                                            <td className="px-4 py-2 text-zinc-500">{p.id}</td>
+                                                                            <td className="px-4 py-2 text-zinc-500">
+                                                                              {p.createdAt
+                                                                                                          ? new Date(p.createdAt).toLocaleDateString()
+                                                                                                          : "\u2014"}
+                                                                            </td>
+                                                                            <td className="px-4 py-2">
+                                                                                                    <span className="text-zinc-300">{p.topic}</span>
+                                                                            </td>
+                                                                            <td
+                                                                                                      className={`px-4 py-2 font-medium uppercase ${
+                                                                                                                                  directionColor[p.direction] || "text-zinc-400"
+                                                                                                        }`}
+                                                                                                    >
+                                                                              {p.direction}
+                                                                            </td>
+                                                                            <td className="px-4 py-2 text-zinc-300">
+                                                                              {p.confidence}%
+                                                                            </td>
+                                                                            <td className="px-4 py-2">
+                                                                              {p.actualOutcome ? (
+                                                                                                        <span
+                                                                                                                                      className={`text-xs font-medium uppercase ${
+                                                                                                                                                                      p.direction === p.actualOutcome
+                                                                                                                                                                        ? "text-green-400"
+                                                                                                                                                                        : "text-red-400"
+                                                                                                                                        }`}
+                                                                                                                                    >
+                                                                                                          {p.actualOutcome}
+                                                                                                          {p.direction === p.actualOutcome
+                                                                                                                                          ? " \u2713"
+                                                                                                                                          : " \u2717"}
+                                                                                                          </span>
+                                                                                                      ) : (
+                                                                                                        <span className="text-xs text-zinc-600">pending</span>
+                                                                                                    )}
+                                                                            </td>
+                                                      </tr>
+                                                    ))}
+                                                              </tbody>
+                                              </table>
+                                </div>
+                            )}
+                  
+                    {/* Resolved Theses summary */}
+                    {resolvedTheses.length > 0 && (
+                                <div className="space-y-3">
+                                              <h2 className="text-lg font-semibold text-zinc-300">
+                                                              Resolved Theses
+                                              </h2>
+                                              <div className="overflow-hidden rounded-lg border border-zinc-800">
+                                                              <table className="w-full text-sm">
+                                                                                <thead>
+                                                                                                    <tr className="border-b border-zinc-800 bg-zinc-900/50 text-left text-xs uppercase tracking-wider text-zinc-500">
+                                                                                                                          <th className="px-4 py-2">Thesis</th>
+                                                                                                                          <th className="px-4 py-2">Direction</th>
+                                                                                                                          <th className="px-4 py-2">Final Prob</th>
+                                                                                                                          <th className="px-4 py-2">Brier</th>
+                                                                                                                          <th className="px-4 py-2">Result</th>
+                                                                                                                          <th className="px-4 py-2">Resolved</th>
+                                                                                                      </tr>
+                                                                                </thead>
+                                                                                <tbody>
+                                                                                  {resolvedTheses.map((t) => (
+                                                        <tr
+                                                                                  key={t.id}
+                                                                                  className="border-b border-zinc-800/50 hover:bg-zinc-900/30"
+                                                                                >
+                                                                                <td className="px-4 py-2 text-zinc-300 max-w-xs truncate">
+                                                                                  {t.title}
+                                                                                  </td>
+                                                                                <td
+                                                                                                            className={`px-4 py-2 font-medium uppercase ${
+                                                                                                                                          directionColor[t.direction] || "text-zinc-400"
+                                                                                                              }`}
+                                                                                                          >
+                                                                                  {t.direction}
+                                                                                  </td>
+                                                                                <td className="px-4 py-2 text-zinc-300">
+                                                                                  {t.finalProbability != null
+                                                                                                                ? `${(t.finalProbability * 100).toFixed(0)}%`
+                                                                                                                : "\u2014"}
+                                                                                  </td>
+                                                                                <td className="px-4 py-2 text-zinc-400">
+                                                                                  {t.brierScore != null
+                                                                                                                ? t.brierScore.toFixed(3)
+                                                                                                                : "\u2014"}
+                                                                                  </td>
+                                                                                <td className="px-4 py-2">
+                                                                                                          <span
+                                                                                                                                        className={`text-xs font-medium ${
+                                                                                                                                                                        t.status === "resolved_correct"
+                                                                                                                                                                          ? "text-green-400"
+                                                                                                                                                                          : "text-red-400"
+                                                                                                                                          }`}
+                                                                                                                                      >
+                                                                                                            {t.status === "resolved_correct"
+                                                                                                                                            ? "Correct \u2713"
+                                                                                                                                            : "Incorrect \u2717"}
+                                                                                                            </span>
+                                                                                  </td>
+                                                                                <td className="px-4 py-2 text-zinc-500 text-xs">
+                                                                                  {t.resolvedAt
+                                                                                                                ? new Date(t.resolvedAt).toLocaleDateString()
+                                                                                                                : "\u2014"}
+                                                                                  </td>
+                                                        </tr>
+                                                      ))}
+                                                                                </tbody>
+                                                              </table>
+                                              </div>
+                                </div>
+                            )}
+                  </>
+                )}
+        
+          {activeTab === "snapshots" && (
+                  <>
+                    {snapshots.length === 0 ? (
+                                <div className="rounded-lg border border-zinc-800 p-8 text-center">
+                                              <p className="text-sm text-zinc-500">
+                                                              No probability snapshots yet.
+                                              </p>
+                                              <p className="mt-2 text-xs text-zinc-600">
+                                                              Use{" "}
+                                                              <Link
+                                                                                  href="/predictions"
+                                                                                  className="text-blue-400 hover:underline"
+                                                                                >
+                                                                                Compute Probabilities
+                                                              </Link>{" "}
+                                                              to generate thesis probability snapshots.
+                                              </p>
+                                </div>
+                              ) : (
+                                <div className="overflow-hidden rounded-lg border border-zinc-800">
+                                              <table className="w-full text-sm">
+                                                              <thead>
+                                                                                <tr className="border-b border-zinc-800 bg-zinc-900/50 text-left text-xs uppercase tracking-wider text-zinc-500">
+                                                                                                    <th className="px-4 py-2">Date</th>
+                                                                                                    <th className="px-4 py-2">Thesis</th>
+                                                                                                    <th className="px-4 py-2">Direction</th>
+                                                                                                    <th className="px-4 py-2">Probability</th>
+                                                                                                    <th className="px-4 py-2">Momentum</th>
+                                                                                                    <th className="px-4 py-2">Signals</th>
+                                                                                </tr>
+                                                              </thead>
+                                                              <tbody>
+                                                                {snapshots.map((s) => (
+                                                      <tr
+                                                                              key={s.id}
+                                                                              className="border-b border-zinc-800/50 hover:bg-zinc-900/30"
+                                                                            >
+                                                                            <td className="px-4 py-2 text-zinc-500 text-xs">
+                                                                              {new Date(s.computedAt).toLocaleString()}
+                                                                            </td>
+                                                                            <td className="px-4 py-2">
+                                                                                                    <Link
+                                                                                                                                href="/predictions"
+                                                                                                                                className="text-zinc-300 hover:text-white hover:underline"
+                                                                                                                              >
+                                                                                                      {s.thesisTitle}
+                                                                                                      </Link>
+                                                                            </td>
+                                                                            <td
+                                                                                                      className={`px-4 py-2 font-medium uppercase text-xs ${
+                                                                                                                                  directionColor[s.thesisDirection] || "text-zinc-400"
+                                                                                                        }`}
+                                                                                                    >
+                                                                              {s.thesisDirection}
+                                                                            </td>
+                                                                            <td className="px-4 py-2 text-zinc-300">
+                                                                              {(s.probability * 100).toFixed(1)}%
+                                                                            </td>
+                                                                            <td className="px-4 py-2">
+                                                                              {s.momentum != null ? (
+                                                                                                        <span
+                                                                                                                                      className={`text-xs font-medium ${
+                                                                                                                                                                      s.momentum > 0
+                                                                                                                                                                        ? "text-green-400"
+                                                                                                                                                                        : s.momentum < 0
+                                                                                                                                                                        ? "text-red-400"
+                                                                                                                                                                        : "text-zinc-500"
+                                                                                                                                        }`}
+                                                                                                                                    >
+                                                                                                          {s.momentum > 0 ? "+" : ""}
+                                                                                                          {(s.momentum * 100).toFixed(1)}%
+                                                                                                          </span>
+                                                                                                      ) : (
+                                                                                                        <span className="text-xs text-zinc-600">\u2014</span>
+                                                                                                    )}
+                                                                            </td>
+                                                                            <td className="px-4 py-2 text-zinc-400">
+                                                                              {s.signalCount}
+                                                                            </td>
+                                                      </tr>
+                                                    ))}
+                                                              </tbody>
+                                              </table>
+                                </div>
+                            )}
+                  </>
+                )}
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <button onClick={handleCompute} disabled={computing}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-            {computing ? "Computing..." : "Compute Probabilities"}
-          </button>
-          {lastComputed && <span className="text-xs text-gray-400">Last run: {lastComputed}</span>}
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
-      )}
-
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2, 3, 4].map((i) => <div key={i} className="bg-gray-100 rounded-xl h-64 animate-pulse" />)}
-        </div>
-      ) : theses.length === 0 ? (
-        <div className="text-center py-20 text-gray-400">
-          <p className="text-lg">No active theses found.</p>
-          <p className="text-sm mt-2">Create and activate theses from the <a href="/thesis" className="text-blue-500 underline">Thesis page</a>.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {theses.map((t) => <ThesisCard key={t.id} thesis={t} />)}
-        </div>
-      )}
-    </main>
-  );
+      );
 }

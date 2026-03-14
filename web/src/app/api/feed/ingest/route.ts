@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { insertNewsEvent, listNewsEvents, markNewsProcessed, listTheses } from "@/lib/db/graph-queries";
+import { insertNewsEvent, listNewsEvents, markNewsProcessed, listTheses, upsertThesisInteraction } from "@/lib/db/graph-queries";
 import { snapshotAllProbabilities } from "@/lib/db/probability";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -39,7 +39,8 @@ Extract the following:
 2. **Sentiment**: "bullish", "bearish", or "neutral" for AI/tech investment
 3. **Entities Mentioned**: List of specific companies, models, technologies, people. Use exact names.
 4. **Thesis Connections**: For each active thesis, does this article SUPPORT, CONTRADICT, or is it UNRELATED?
-5. **Key Insight**: 1-2 sentence summary of the investment implication
+5. **Thesis Interactions**: Based on this article, do any of the active theses REINFORCE or CONTRADICT each other? Only include if the article provides evidence of a link between two theses.
+6. **Key Insight**: 1-2 sentence summary of the investment implication
 
 Respond ONLY with valid JSON:
 {
@@ -51,6 +52,15 @@ Respond ONLY with valid JSON:
       "thesis_id": 1,
       "relation": "SUPPORTS|CONTRADICTS|UNRELATED",
       "direction": "bullish|bearish|neutral",
+      "confidence": 0.0-1.0,
+      "reasoning": "..."
+    }
+  ],
+  "thesis_interactions": [
+    {
+      "thesis_a_id": 1,
+      "thesis_b_id": 2,
+      "relation": "REINFORCES|CONTRADICTS",
       "confidence": 0.0-1.0,
       "reasoning": "..."
     }
@@ -133,6 +143,19 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // 5. Create thesis<->thesis interactions
+      for (const ti of parsed.thesis_interactions || []) {
+        if (!ti.thesis_a_id || !ti.thesis_b_id) continue;
+        await upsertThesisInteraction({
+          thesisAId: ti.thesis_a_id,
+          thesisBId: ti.thesis_b_id,
+          relation: ti.relation,
+          confidence: ti.confidence,
+          reasoning: ti.reasoning,
+          sourceNewsId: event.id,
+        });
+      }
+
       results.push({
         id: event.id,
         title: event.title,
@@ -141,6 +164,7 @@ export async function POST(req: NextRequest) {
         connections: (parsed.thesis_connections || []).filter(
           (tc: { relation: string }) => tc.relation !== "UNRELATED"
         ).length,
+        thesisInteractions: (parsed.thesis_interactions || []).length,
       });
     } catch (err) {
       console.error(`Failed to process news event ${event.id}:`, err);

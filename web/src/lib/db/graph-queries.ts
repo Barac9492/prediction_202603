@@ -56,6 +56,8 @@ export async function createThesis(data: {
   status?: string;
   aiRationale?: string;
   isActive?: boolean;
+  deadline?: Date | null;
+  resolutionCriteria?: string;
 }) {
   const [thesis] = await db.insert(theses).values(data).returning();
   return thesis;
@@ -79,7 +81,11 @@ export async function getThesis(id: number) {
 
 export async function updateThesis(
   id: number,
-  data: Partial<{ title: string; description: string; direction: string; isActive: boolean; status: string; aiRationale: string }>
+  data: Partial<{
+    title: string; description: string; direction: string; isActive: boolean;
+    status: string; aiRationale: string; deadline: Date | null; resolutionCriteria: string;
+    resolutionSource: string; resolvedAt: Date; finalProbability: number; brierScore: number;
+  }>
 ) {
   const [updated] = await db
     .update(theses)
@@ -216,6 +222,115 @@ export async function listBacktestRuns(thesisId?: number) {
     return db.select().from(backtestRuns).where(eq(backtestRuns.thesisId, thesisId)).orderBy(desc(backtestRuns.createdAt));
   }
   return db.select().from(backtestRuns).orderBy(desc(backtestRuns.createdAt));
+}
+
+// — Thesis interaction queries ————————————————————————————————
+
+export async function getThesisInteractions(thesisId: number) {
+  const asFrom = await db
+    .select()
+    .from(connections)
+    .where(and(eq(connections.fromType, "thesis"), eq(connections.fromId, thesisId), eq(connections.toType, "thesis")));
+  const asTo = await db
+    .select()
+    .from(connections)
+    .where(and(eq(connections.fromType, "thesis"), eq(connections.toType, "thesis"), eq(connections.toId, thesisId)));
+  // Deduplicate by connection id
+  const map = new Map<number, typeof asFrom[number]>();
+  for (const c of [...asFrom, ...asTo]) map.set(c.id, c);
+  return [...map.values()];
+}
+
+export async function upsertThesisInteraction(data: {
+  thesisAId: number;
+  thesisBId: number;
+  relation: string;
+  confidence: number;
+  reasoning: string;
+  sourceNewsId?: number;
+}) {
+  // Check for existing connection in either direction
+  const existing = await db
+    .select()
+    .from(connections)
+    .where(
+      and(
+        eq(connections.fromType, "thesis"),
+        eq(connections.fromId, data.thesisAId),
+        eq(connections.toType, "thesis"),
+        eq(connections.toId, data.thesisBId)
+      )
+    );
+  if (existing.length > 0) {
+    // Update existing
+    const [updated] = await db
+      .update(connections)
+      .set({
+        relation: data.relation,
+        confidence: data.confidence,
+        reasoning: data.reasoning,
+        sourceNewsId: data.sourceNewsId,
+      })
+      .where(eq(connections.id, existing[0].id))
+      .returning();
+    return updated;
+  }
+  // Check reverse direction
+  const reverse = await db
+    .select()
+    .from(connections)
+    .where(
+      and(
+        eq(connections.fromType, "thesis"),
+        eq(connections.fromId, data.thesisBId),
+        eq(connections.toType, "thesis"),
+        eq(connections.toId, data.thesisAId)
+      )
+    );
+  if (reverse.length > 0) {
+    const [updated] = await db
+      .update(connections)
+      .set({
+        relation: data.relation,
+        confidence: data.confidence,
+        reasoning: data.reasoning,
+        sourceNewsId: data.sourceNewsId,
+      })
+      .where(eq(connections.id, reverse[0].id))
+      .returning();
+    return updated;
+  }
+  // Create new
+  const [created] = await db
+    .insert(connections)
+    .values({
+      fromType: "thesis",
+      fromId: data.thesisAId,
+      toType: "thesis",
+      toId: data.thesisBId,
+      relation: data.relation,
+      confidence: data.confidence,
+      reasoning: data.reasoning,
+      sourceNewsId: data.sourceNewsId,
+    })
+    .returning();
+  return created;
+}
+
+// — Market signal queries ————————————————————————————————
+
+export async function getMarketSignals(thesisId: number) {
+  return db
+    .select()
+    .from(connections)
+    .where(
+      and(
+        eq(connections.fromType, "market"),
+        eq(connections.toType, "thesis"),
+        eq(connections.toId, thesisId)
+      )
+    )
+    .orderBy(desc(connections.createdAt));
 }
 
 export async function reinforceConnection(connectionId: number, wasCorrect: boolean) {

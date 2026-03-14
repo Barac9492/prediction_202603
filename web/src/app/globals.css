@@ -1,13 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
-  --foreground: #fafafa;
+  --background: #FFFFFF;
+  --foreground: #18181B;
+
+  /* Polymarket design tokens */
+  --pm-blue: #1452F0;
+  --pm-green: #30A159;
+  --pm-red: #E23939;
+  --pm-border: #E6E8EA;
+  --pm-muted: #77808D;
+  --pm-bg-search: #F4F5F6;
+  --pm-text-primary: #18181B;
+  --pm-text-secondary: #77808D;
+  --pm-text-meta: #AEB4BC;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-pm-blue: var(--pm-blue);
+  --color-pm-green: var(--pm-green);
+  --color-pm-red: var(--pm-red);
+  --color-pm-border: var(--pm-border);
+  --color-pm-muted: var(--pm-muted);
+  --color-pm-bg-search: var(--pm-bg-search);
+  --color-pm-text-primary: var(--pm-text-primary);
+  --color-pm-text-secondary: var(--pm-text-secondary);
+  --color-pm-text-meta: var(--pm-text-meta);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

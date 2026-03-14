@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 /** POST /api/theses - create a new thesis */
 export async function POST(req: NextRequest) {
     const body = await req.json();
-    const { title, description, direction, domain, tags } = body;
+    const { title, description, direction, domain, tags, deadline, resolutionCriteria } = body;
 
   const VALID_DIRECTIONS = ["bullish", "bearish", "neutral"];
   if (!title || typeof title !== "string" || !description || typeof description !== "string" || !direction) {
@@ -43,7 +43,11 @@ export async function POST(req: NextRequest) {
               );
   }
 
-  const thesis = await createThesis({ title, description, direction, domain, tags });
+  const thesis = await createThesis({
+    title, description, direction, domain, tags,
+    ...(deadline && { deadline: new Date(deadline) }),
+    ...(resolutionCriteria && { resolutionCriteria }),
+  });
     return NextResponse.json(thesis, { status: 201 });
 }
 
