@@ -9,6 +9,14 @@ export const maxDuration = 120;
  * Evaluate expired recommendations and compute Brier scores.
  */
 export async function POST() {
-  const result = await evaluateExpiredRecs();
-  return NextResponse.json(result);
+  try {
+    const result = await evaluateExpiredRecs();
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Recommendation evaluation failed:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Evaluation failed" },
+      { status: 500 }
+    );
+  }
 }

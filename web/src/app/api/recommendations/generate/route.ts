@@ -9,6 +9,14 @@ export const maxDuration = 120;
  * Generate investment recommendations from active thesis state.
  */
 export async function POST() {
-  const result = await generateRecommendations();
-  return NextResponse.json(result);
+  try {
+    const result = await generateRecommendations();
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Recommendation generation failed:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Generation failed" },
+      { status: 500 }
+    );
+  }
 }
