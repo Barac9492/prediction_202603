@@ -336,4 +336,4 @@ export default async function LogPage({
                 )}
         </div>
       );
-}</></></div>
+}
