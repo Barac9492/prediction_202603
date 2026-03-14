@@ -86,6 +86,8 @@ export async function refineParams(): Promise<{
         thesisCount: best.thesisCount,
         improvement: improvement,
         previousBrier: currentBrier,
+        testBrier: best.testBrier ?? null,
+        overfitWarning: best.overfitWarning ?? false,
       },
       accuracy: 1 - best.aggregateBrier,
       totalSignals: best.thesisCount,

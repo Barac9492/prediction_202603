@@ -4,6 +4,10 @@ import {
   getCumulativeReturns,
   getWorstMisses,
   getRollingAccuracy,
+  getSharpeRatio,
+  getMaxDrawdown,
+  getProfitFactor,
+  getMagnitudeAnalysis,
 } from "@/lib/db/performance";
 import { listRecommendations } from "@/lib/db/graph-queries";
 import { CumulativeChart } from "@/components/cumulative-chart";
@@ -12,7 +16,7 @@ import { HitRateChart } from "./hit-rate-chart";
 export const dynamic = "force-dynamic";
 
 export default async function PerformancePage() {
-  const [quintiles, actionReturns, cumReturns, worstMisses, rolling, allRecs] =
+  const [quintiles, actionReturns, cumReturns, worstMisses, rolling, allRecs, sharpe, drawdown, profitFactor, magnitude] =
     await Promise.all([
       getHitRateByConvictionQuintile(),
       getReturnsByAction(),
@@ -20,6 +24,10 @@ export default async function PerformancePage() {
       getWorstMisses(),
       getRollingAccuracy(),
       listRecommendations({ limit: 500 }),
+      getSharpeRatio(),
+      getMaxDrawdown(),
+      getProfitFactor(),
+      getMagnitudeAnalysis(),
     ]);
 
   const resolved = allRecs.filter((r) => r.status !== "active");
@@ -103,6 +111,95 @@ export default async function PerformancePage() {
           </div>
         ))}
       </div>
+
+      {/* Risk metrics */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl border border-pm-border px-4 py-3">
+          <div className="text-xs font-medium text-pm-text-meta">Sharpe Ratio</div>
+          <div className="mt-1 text-2xl font-bold text-pm-text-primary">
+            {sharpe !== null ? sharpe.toFixed(2) : "—"}
+          </div>
+        </div>
+        <div className="rounded-xl border border-pm-border px-4 py-3">
+          <div className="text-xs font-medium text-pm-text-meta">Max Drawdown</div>
+          <div className="mt-1 text-2xl font-bold text-pm-red">
+            {drawdown ? `-${(drawdown.pct * 100).toFixed(1)}%` : "—"}
+          </div>
+          {drawdown?.start && drawdown?.end && (
+            <div className="text-xs text-pm-muted">
+              {drawdown.start} → {drawdown.end}
+            </div>
+          )}
+        </div>
+        <div className="rounded-xl border border-pm-border px-4 py-3">
+          <div className="text-xs font-medium text-pm-text-meta">Profit Factor</div>
+          <div className="mt-1 text-2xl font-bold text-pm-text-primary">
+            {profitFactor !== null
+              ? profitFactor === Infinity
+                ? "∞"
+                : profitFactor.toFixed(2)
+              : "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* Magnitude analysis */}
+      {magnitude.some((m) => m.count > 0) && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold text-pm-text-primary">
+            Performance by Return Magnitude
+          </h2>
+          <div className="overflow-hidden rounded-lg border border-pm-border bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-pm-border bg-gray-50">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
+                    Return Bucket
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
+                    Count
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
+                    Avg Conviction
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
+                    Hit Rate
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">
+                    Avg Return
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {magnitude.map((m) => (
+                  <tr
+                    key={m.label}
+                    className="border-b border-pm-border last:border-0"
+                  >
+                    <td className="px-4 py-2 font-medium text-pm-text-primary">
+                      {m.label}
+                    </td>
+                    <td className="px-4 py-2 text-pm-text-secondary">{m.count}</td>
+                    <td className="px-4 py-2 tabular-nums text-pm-text-secondary">
+                      {m.count > 0 ? `${(m.avgConviction * 100).toFixed(0)}%` : "—"}
+                    </td>
+                    <td className="px-4 py-2 tabular-nums text-pm-text-secondary">
+                      {m.count > 0 ? `${(m.hitRate * 100).toFixed(1)}%` : "—"}
+                    </td>
+                    <td
+                      className={`px-4 py-2 tabular-nums ${m.avgReturn > 0 ? "text-pm-green" : m.avgReturn < 0 ? "text-pm-red" : "text-pm-text-secondary"}`}
+                    >
+                      {m.count > 0
+                        ? `${m.avgReturn > 0 ? "+" : ""}${(m.avgReturn * 100).toFixed(2)}%`
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Hit rate by conviction quintile */}
       {quintiles.length > 0 && (

@@ -2,11 +2,20 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   getExpiredRecommendations,
   resolveRecommendation,
+  getThesisConnections,
+  reinforceConnection,
 } from "@/lib/db/graph-queries";
 import { getCurrentProbabilities } from "@/lib/db/probability";
 import { fetchPrice } from "@/lib/markets/yahoo";
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-20250514";
+
+async function reinforceThesisConnections(thesisId: number, wasCorrect: boolean) {
+  const thesisConns = await getThesisConnections(thesisId);
+  for (const conn of thesisConns) {
+    await reinforceConnection(conn.id, wasCorrect);
+  }
+}
 
 interface EvaluationResult {
   id: number;
@@ -82,6 +91,10 @@ export async function evaluateExpiredRecs(): Promise<{
           actualReturn,
         });
 
+        if (rec.thesisId) {
+          await reinforceThesisConnections(rec.thesisId, correct);
+        }
+
         results.push({
           id: rec.id,
           status,
@@ -155,6 +168,10 @@ Respond with ONLY the JSON, no other text.`,
       brierScore,
       probabilityAtResolution: thesisProb?.probability,
     });
+
+    if (rec.thesisId) {
+      await reinforceThesisConnections(rec.thesisId, evaluation.correct);
+    }
 
     results.push({
       id: rec.id,

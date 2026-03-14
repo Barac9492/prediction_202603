@@ -126,6 +126,137 @@ export async function getWorstMisses(limit = 10) {
     }));
 }
 
+export async function getSharpeRatio() {
+  const recs = await getResolvedRecs();
+  const returns = recs
+    .map((r) => r.actualReturn)
+    .filter((r): r is number => r !== null);
+
+  if (returns.length < 2) return null;
+
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const variance =
+    returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / (returns.length - 1);
+  const stdev = Math.sqrt(variance);
+
+  if (stdev === 0) return null;
+
+  // Estimate average holding days from resolved recs
+  const withDates = recs.filter(
+    (r) => r.actualReturn !== null && r.resolvedAt !== null
+  );
+  const holdingDays =
+    withDates.length > 0
+      ? withDates.reduce(
+          (sum, r) =>
+            sum +
+            (new Date(r.resolvedAt!).getTime() - new Date(r.createdAt).getTime()) /
+              (1000 * 60 * 60 * 24),
+          0,
+        ) / withDates.length
+      : 30;
+
+  const annualizationFactor = Math.sqrt(252 / Math.max(holdingDays, 1));
+  return (mean / stdev) * annualizationFactor;
+}
+
+export async function getMaxDrawdown() {
+  const recs = await getResolvedRecs();
+  const withReturns = recs
+    .filter((r) => r.actualReturn !== null && r.resolvedAt !== null)
+    .sort(
+      (a, b) =>
+        new Date(a.resolvedAt!).getTime() - new Date(b.resolvedAt!).getTime()
+    );
+
+  if (withReturns.length === 0) return null;
+
+  let cumulative = 0;
+  let peak = 0;
+  let maxDrawdown = 0;
+  let maxDrawdownPct = 0;
+  let ddStart = 0;
+  let ddEnd = 0;
+  let currentStart = 0;
+
+  for (let i = 0; i < withReturns.length; i++) {
+    cumulative += withReturns[i].actualReturn!;
+    if (cumulative > peak) {
+      peak = cumulative;
+      currentStart = i;
+    }
+    const drawdown = peak - cumulative;
+    if (drawdown > maxDrawdown) {
+      maxDrawdown = drawdown;
+      maxDrawdownPct = peak !== 0 ? drawdown / peak : 0;
+      ddStart = currentStart;
+      ddEnd = i;
+    }
+  }
+
+  return {
+    maxDrawdown,
+    pct: maxDrawdownPct,
+    start: withReturns[ddStart]?.resolvedAt
+      ? new Date(withReturns[ddStart].resolvedAt!).toISOString().slice(0, 10)
+      : null,
+    end: withReturns[ddEnd]?.resolvedAt
+      ? new Date(withReturns[ddEnd].resolvedAt!).toISOString().slice(0, 10)
+      : null,
+  };
+}
+
+export async function getProfitFactor() {
+  const recs = await getResolvedRecs();
+  const returns = recs
+    .map((r) => r.actualReturn)
+    .filter((r): r is number => r !== null);
+
+  const gains = returns.filter((r) => r > 0).reduce((a, b) => a + b, 0);
+  const losses = Math.abs(returns.filter((r) => r < 0).reduce((a, b) => a + b, 0));
+
+  if (losses === 0) return gains > 0 ? Infinity : null;
+  return gains / losses;
+}
+
+export async function getMagnitudeAnalysis() {
+  const recs = await getResolvedRecs();
+  const withReturns = recs.filter(
+    (r) => r.actualReturn !== null
+  );
+
+  const buckets = [
+    { label: "< -5%", min: -Infinity, max: -0.05 },
+    { label: "-5% to 0%", min: -0.05, max: 0 },
+    { label: "0% to 5%", min: 0, max: 0.05 },
+    { label: "5% to 10%", min: 0.05, max: 0.1 },
+    { label: "> 10%", min: 0.1, max: Infinity },
+  ];
+
+  return buckets.map((bucket) => {
+    const inBucket = withReturns.filter(
+      (r) => r.actualReturn! >= bucket.min && r.actualReturn! < bucket.max
+    );
+    const correct = inBucket.filter((r) => r.status === "resolved_correct").length;
+    const avgConviction =
+      inBucket.length > 0
+        ? inBucket.reduce((s, r) => s + r.conviction, 0) / inBucket.length
+        : 0;
+    const avgReturn =
+      inBucket.length > 0
+        ? inBucket.reduce((s, r) => s + r.actualReturn!, 0) / inBucket.length
+        : 0;
+
+    return {
+      label: bucket.label,
+      count: inBucket.length,
+      avgConviction,
+      hitRate: inBucket.length > 0 ? correct / inBucket.length : 0,
+      avgReturn,
+    };
+  });
+}
+
 export async function getRollingAccuracy(windows: number[] = [30, 60, 90]) {
   const recs = await getResolvedRecs();
   const now = Date.now();

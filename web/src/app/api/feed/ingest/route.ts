@@ -10,6 +10,7 @@ import {
   createEntityObservation,
 } from "@/lib/db/graph-queries";
 import { snapshotAllProbabilities } from "@/lib/db/probability";
+import { computeSourceCredibility, getCredibilityForSource } from "@/lib/db/source-credibility";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const dynamic = "force-dynamic";
@@ -107,6 +108,9 @@ export async function POST(req: NextRequest) {
     .map((t) => `ID ${t.id}: [${t.direction.toUpperCase()}] ${t.title} — ${t.description}`)
     .join("\n");
 
+  // Pre-compute source credibility for confidence adjustments
+  const credibilityMap = await computeSourceCredibility();
+
   const results = [];
 
   for (const event of unprocessed) {
@@ -162,13 +166,14 @@ export async function POST(req: NextRequest) {
         entityMap.set(entityData.name, entity.id);
 
         // Create news_event → entity MENTIONS connection
+        const credibility = getCredibilityForSource(credibilityMap, event.source);
         await createConnection({
           fromType: "news_event",
           fromId: event.id,
           toType: "entity",
           toId: entity.id,
           relation: "MENTIONS",
-          confidence: 0.9,
+          confidence: 0.9 * credibility,
           reasoning: typeof ent === "string" ? undefined : `Role: ${ent.role}`,
           sourceNewsId: event.id,
         });
@@ -196,6 +201,7 @@ export async function POST(req: NextRequest) {
       for (const tc of parsed.thesis_connections || []) {
         if (tc.relation === "UNRELATED") continue;
         relevantThesisIds.add(tc.thesis_id);
+        const credibility = getCredibilityForSource(credibilityMap, event.source);
         await createConnection({
           fromType: "news_event",
           fromId: event.id,
@@ -203,7 +209,7 @@ export async function POST(req: NextRequest) {
           toId: tc.thesis_id,
           relation: tc.relation,
           direction: tc.direction,
-          confidence: tc.confidence,
+          confidence: tc.confidence * credibility,
           reasoning: tc.reasoning,
           sourceNewsId: event.id,
         });
@@ -212,13 +218,14 @@ export async function POST(req: NextRequest) {
       // 8. Create entity→thesis connections for entities in thesis-connected articles
       for (const [entityName, entityId] of entityMap) {
         for (const thesisId of relevantThesisIds) {
+          const credibility = getCredibilityForSource(credibilityMap, event.source);
           await createConnection({
             fromType: "entity",
             fromId: entityId,
             toType: "thesis",
             toId: thesisId,
             relation: "RELEVANT_TO",
-            confidence: 0.6,
+            confidence: 0.6 * credibility,
             reasoning: `Entity "${entityName}" appeared in article connected to thesis`,
             sourceNewsId: event.id,
           });
