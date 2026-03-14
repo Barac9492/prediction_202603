@@ -42,24 +42,6 @@ type SignalCluster = {
   detectedAt: Date;
 };
 
-type Recommendation = {
-  id: number;
-  thesisId: number | null;
-  action: string;
-  asset: string;
-  conviction: number;
-  timeframeDays: number;
-  deadline: Date;
-  rationale: string;
-  status: string;
-  outcomeNotes: string | null;
-  brierScore: number | null;
-  resolvedAt: Date | null;
-  probabilityAtCreation: number | null;
-  probabilityAtResolution: number | null;
-  createdAt: Date;
-};
-
 type UncoveredEntity = {
   entity: {
     id: number;
@@ -335,76 +317,6 @@ function IntelligenceBriefing({
   );
 }
 
-/* ─── Active Recommendations ─── */
-const ACTION_BADGE: Record<string, string> = {
-  BUY: "bg-pm-green/10 text-pm-green border-pm-green/30",
-  SELL: "bg-pm-red/10 text-pm-red border-pm-red/30",
-  WATCH: "bg-pm-blue/10 text-pm-blue border-pm-blue/30",
-  HOLD: "bg-gray-100 text-gray-600 border-gray-300",
-  AVOID: "bg-white text-pm-red border-pm-red",
-};
-
-function ActiveRecs({ recs }: { recs: Recommendation[] }) {
-  if (recs.length === 0) return null;
-
-  return (
-    <section className="mb-6 rounded-[15px] border border-pm-border p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-pm-text-primary">
-          Active Recommendations
-        </h2>
-        <Link
-          href="/recommendations"
-          className="text-xs text-pm-blue hover:underline"
-        >
-          View all →
-        </Link>
-      </div>
-      <div className="space-y-2">
-        {recs.map((rec) => {
-          const days = Math.ceil(
-            (new Date(rec.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-          );
-          const convPct = Math.round(rec.conviction * 100);
-          return (
-            <div
-              key={rec.id}
-              className="flex items-center gap-3 rounded-lg border border-pm-border px-3 py-2"
-            >
-              <span
-                className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold ${ACTION_BADGE[rec.action] || ACTION_BADGE.HOLD}`}
-              >
-                {rec.action}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-pm-text-primary">
-                {rec.asset}
-              </span>
-              <div className="flex items-center gap-2">
-                <div className="hidden items-center gap-1 sm:flex">
-                  <div className="h-1 w-12 overflow-hidden rounded-full bg-pm-bg-search">
-                    <div
-                      className="h-full rounded-full bg-pm-blue"
-                      style={{ width: `${convPct}%` }}
-                    />
-                  </div>
-                  <span className="text-xs tabular-nums text-pm-text-meta">
-                    {convPct}%
-                  </span>
-                </div>
-                <span
-                  className={`shrink-0 text-xs tabular-nums ${days > 7 ? "text-pm-text-meta" : days > 0 ? "text-orange-500" : "text-pm-red"}`}
-                >
-                  {days > 0 ? `${days}d` : "expired"}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 /* ─── 3. Thesis Card (enhanced) ─── */
 function ThesisCard({
   thesis,
@@ -600,7 +512,6 @@ export function HomeGrid({
   recentNews,
   activeClusters,
   uncoveredEntities,
-  activeRecs,
 }: {
   theses: Thesis[];
   trending: Thesis[];
@@ -608,7 +519,6 @@ export function HomeGrid({
   recentNews: NewsEvent[];
   activeClusters: SignalCluster[];
   uncoveredEntities: UncoveredEntity[];
-  activeRecs: Recommendation[];
 }) {
   const [activeDomain, setActiveDomain] = useState<string | null>(null);
 
@@ -625,9 +535,6 @@ export function HomeGrid({
 
       {/* 2. Intelligence Briefing */}
       <IntelligenceBriefing news={recentNews} clusters={activeClusters} />
-
-      {/* Active Recommendations */}
-      <ActiveRecs recs={activeRecs} />
 
       {/* 3. Your Theses */}
       <div className="mb-4 flex items-center justify-between">

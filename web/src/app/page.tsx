@@ -1,47 +1,41 @@
 import { getCurrentProbabilities } from "@/lib/db/probability";
-import {
-  listSignalClusters,
-  listNewsEvents,
-  getUncoveredEntities,
-  listRecommendations,
-} from "@/lib/db/graph-queries";
-import { HomeGrid } from "@/components/home-grid";
+import { listRecommendations } from "@/lib/db/graph-queries";
+import { RecommendationsLanding } from "@/components/recommendations-landing";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [theses, activeClusters, recentNews, uncoveredEntities, activeRecs] =
-    await Promise.all([
-      getCurrentProbabilities(),
-      listSignalClusters("active"),
-      listNewsEvents({ limit: 5 }),
-      getUncoveredEntities(),
-      listRecommendations({ status: "active", limit: 5 }),
-    ]);
+  const [allRecs, probabilities] = await Promise.all([
+    listRecommendations({ limit: 200 }),
+    getCurrentProbabilities(),
+  ]);
 
-  // Sort by absolute momentum for trending
-  const trending = [...theses]
-    .filter((t) => t.momentum !== null)
-    .sort((a, b) => Math.abs(b.momentum ?? 0) - Math.abs(a.momentum ?? 0))
-    .slice(0, 5);
+  // Candidate count: same filter as generator.ts
+  const candidateCount = probabilities.filter(
+    (t) =>
+      t.probability > 0.65 ||
+      t.probability < 0.35 ||
+      Math.abs(t.momentum ?? 0) > 0.05
+  ).length;
 
-  // Extract unique domains for category pills
-  const domains = Array.from(new Set(theses.map((t) => t.domain))).sort();
+  // Build thesis lookup for enriching rec cards
+  const thesisMap: Record<number, { title: string; probability: number }> = {};
+  for (const t of probabilities) {
+    thesisMap[t.thesisId] = { title: t.title, probability: t.probability };
+  }
 
-  // Sort theses by momentum (biggest movers first)
-  const sorted = [...theses].sort(
-    (a, b) => Math.abs(b.momentum ?? 0) - Math.abs(a.momentum ?? 0)
-  );
+  // Check for expired recs
+  const now = Date.now();
+  const expiredCount = allRecs.filter(
+    (r) => r.status === "active" && new Date(r.deadline).getTime() < now
+  ).length;
 
   return (
-    <HomeGrid
-      theses={sorted}
-      trending={trending}
-      domains={domains}
-      recentNews={recentNews}
-      activeClusters={activeClusters}
-      uncoveredEntities={uncoveredEntities}
-      activeRecs={activeRecs}
+    <RecommendationsLanding
+      allRecs={allRecs}
+      thesisMap={thesisMap}
+      candidateCount={candidateCount}
+      expiredCount={expiredCount}
     />
   );
 }
