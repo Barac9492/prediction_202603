@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { listPredictions } from "@/lib/db/queries";
+import { listPredictions, listStalePredictions } from "@/lib/db/queries";
 import { listTheses } from "@/lib/db/graph-queries";
 import { db } from "@/lib/db/index";
 import { thesisProbabilitySnapshots, theses as thesesTable } from "@/lib/db/schema";
@@ -40,8 +40,9 @@ export default async function LogPage({
     const activeTab = tab === "snapshots" ? "snapshots" : "predictions";
     const f = (filter as "all" | "pending" | "resolved") || "all";
 
-  const [preds, snapshots, allTheses] = await Promise.all([
+  const [preds, stale, snapshots, allTheses] = await Promise.all([
         listPredictions(f),
+        listStalePredictions(7, 5),
         getRecentSnapshots(50),
         listTheses(),
       ]);
@@ -52,10 +53,46 @@ export default async function LogPage({
 
   return (
         <div className="space-y-6">
+              {/* Resolution nudge banner */}
+              {stale.length > 0 && (
+                <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-400">
+                        {stale.length} prediction{stale.length > 1 ? "s" : ""} awaiting resolution
+                      </h3>
+                      <p className="text-xs text-amber-400/70 mt-0.5">
+                        Recording outcomes improves calibration accuracy and strengthens the knowledge graph.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {stale.map((p) => (
+                      <Link
+                        key={p.id}
+                        href={`/predictions/${p.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-amber-800/50 bg-amber-900/30 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-900/50 transition-colors"
+                      >
+                        <span className={`font-medium uppercase ${directionColor[p.direction] || ""}`}>
+                          {p.direction}
+                        </span>
+                        <span className="text-amber-400/60">|</span>
+                        <span className="truncate max-w-[200px]">{p.topic}</span>
+                        <span className="text-amber-600 text-[10px]">
+                          {p.createdAt
+                            ? `${Math.floor((Date.now() - new Date(p.createdAt).getTime()) / 86400000)}d ago`
+                            : ""}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                       <h1 className="text-2xl font-bold">Prediction Log</h1>
               </div>
-        
+
           {/* Tab bar */}
               <div className="flex gap-1 border-b border-zinc-800 pb-2">
                       <Link
@@ -79,7 +116,7 @@ export default async function LogPage({
                                 Probability Snapshots ({snapshots.length})
                       </Link>
               </div>
-        
+
           {activeTab === "predictions" && (
                   <>
                     {/* Filter pills */}
@@ -98,7 +135,7 @@ export default async function LogPage({
                                   </Link>
                                 ))}
                             </div>
-                  
+
                     {preds.length === 0 ? (
                                 <div className="rounded-lg border border-zinc-800 p-8 text-center">
                                               <p className="text-sm text-zinc-500">
@@ -174,7 +211,7 @@ export default async function LogPage({
                                               </table>
                                 </div>
                             )}
-                  
+
                     {/* Resolved Theses summary */}
                     {resolvedTheses.length > 0 && (
                                 <div className="space-y-3">
@@ -246,7 +283,7 @@ export default async function LogPage({
                             )}
                   </>
                 )}
-        
+
           {activeTab === "snapshots" && (
                   <>
                     {snapshots.length === 0 ? (
@@ -320,7 +357,7 @@ export default async function LogPage({
                                                                                                           {(s.momentum * 100).toFixed(1)}%
                                                                                                           </span>
                                                                                                       ) : (
-                                                                                                        <span className="text-xs text-zinc-600">\u2014</span>
+                                                                                                        <span className="text-xs text-zinc-600">{"\u2014"}</span>
                                                                                                     )}
                                                                             </td>
                                                                             <td className="px-4 py-2 text-zinc-400">

@@ -106,6 +106,23 @@ export async function getPredictionDetail(predictionId: number) {
   return { prediction: pred, signals: sigs, sources: srcs };
 }
 
+export async function listStalePredictions(olderThanDays = 7, limit = 10) {
+  return db
+    .select({
+      id: predictions.id,
+      topic: predictions.topic,
+      direction: predictions.direction,
+      confidence: predictions.confidence,
+      createdAt: predictions.createdAt,
+    })
+    .from(predictions)
+    .where(
+      sql`${predictions.actualOutcome} IS NULL AND ${predictions.createdAt} < NOW() - INTERVAL '1 day' * ${olderThanDays}`
+    )
+    .orderBy(desc(predictions.createdAt))
+    .limit(limit);
+}
+
 export async function getCalibrationStats() {
   const resolved = await db
     .select({

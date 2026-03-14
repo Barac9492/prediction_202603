@@ -1,81 +1,103 @@
-"""Storage module — SQLite persistence for predictions, signals, and outcomes."""
+"""Storage module — PostgreSQL persistence for predictions, signals, and outcomes.
+
+Uses psycopg2 to connect to the same Neon PostgreSQL database as the web frontend,
+ensuring a unified data store across CLI and web.
+"""
 
 from __future__ import annotations
 
 import json
-import sqlite3
+import logging
+import os
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path(__file__).parent.parent.parent / "signal_tracker.db"
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS predictions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    topic TEXT NOT NULL,
-    direction TEXT NOT NULL,
-    confidence REAL NOT NULL,
-    weighted_score REAL NOT NULL,
-    top_reasons TEXT NOT NULL,
-    signal_count INTEGER NOT NULL,
-    bullish_count INTEGER NOT NULL,
-    bearish_count INTEGER NOT NULL,
-    neutral_count INTEGER NOT NULL,
-    contradictions TEXT,
-    created_at TEXT NOT NULL,
-    -- outcome tracking
-    actual_outcome TEXT,
-    outcome_notes TEXT,
-    resolved_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS signals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    prediction_id INTEGER NOT NULL,
-    description TEXT NOT NULL,
-    direction TEXT NOT NULL,
-    strength INTEGER NOT NULL,
-    reasoning TEXT NOT NULL,
-    source_title TEXT,
-    FOREIGN KEY (prediction_id) REFERENCES predictions(id)
-);
-
-CREATE TABLE IF NOT EXISTS sources (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    prediction_id INTEGER NOT NULL,
-    title TEXT,
-    url TEXT,
-    summary TEXT,
-    relevance_score INTEGER,
-    collected_at TEXT,
-    FOREIGN KEY (prediction_id) REFERENCES predictions(id)
-);
-"""
+logger = logging.getLogger(__name__)
 
 
-def get_db(db_path: Path | None = None) -> sqlite3.Connection:
-    path = db_path or DB_PATH
-    conn = sqlite3.connect(str(path))
-    conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
+def get_db(db_url: str | None = None):
+    """Get a PostgreSQL connection. Falls back to DATABASE_URL env var."""
+    try:
+        import psycopg2
+        import psycopg2.extras
+    except ImportError:
+        raise ImportError("psycopg2 not installed. Run: pip install psycopg2-binary")
+
+    url = db_url or os.environ.get("DATABASE_URL")
+    if not url:
+        raise RuntimeError(
+            "DATABASE_URL not set. Set it in .env or pass db_url argument."
+        )
+
+    conn = psycopg2.connect(url)
+    conn.autocommit = False
+    # Use RealDictCursor so rows behave like dicts
+    conn.cursor_factory = psycopg2.extras.RealDictCursor
+    _ensure_schema(conn)
     return conn
 
 
+def _ensure_schema(conn) -> None:
+    """Create tables if they don't exist (idempotent)."""
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS predictions (
+            id SERIAL PRIMARY KEY,
+            topic TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            weighted_score REAL NOT NULL,
+            top_reasons JSONB NOT NULL,
+            signal_count INTEGER NOT NULL,
+            bullish_count INTEGER NOT NULL,
+            bearish_count INTEGER NOT NULL,
+            neutral_count INTEGER NOT NULL,
+            contradictions JSONB,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            actual_outcome TEXT,
+            outcome_notes TEXT,
+            resolved_at TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS signals (
+            id SERIAL PRIMARY KEY,
+            prediction_id INTEGER NOT NULL REFERENCES predictions(id),
+            description TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            strength INTEGER NOT NULL,
+            reasoning TEXT NOT NULL,
+            source_title TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS sources (
+            id SERIAL PRIMARY KEY,
+            prediction_id INTEGER NOT NULL REFERENCES predictions(id),
+            title TEXT,
+            url TEXT,
+            summary TEXT,
+            relevance_score INTEGER,
+            collected_at TIMESTAMP
+        );
+    """)
+    conn.commit()
+
+
 def save_prediction(
-    db: sqlite3.Connection,
+    db,
     topic: str,
     prediction,  # ensemble.Prediction
     signals,     # list[extractor.Signal]
     sources,     # list[(source_title, url, summary, relevance_score, collected_at)]
 ) -> int:
     """Save a prediction and all associated data. Returns prediction ID."""
-    cursor = db.execute(
+    cur = db.cursor()
+    cur.execute(
         """INSERT INTO predictions
            (topic, direction, confidence, weighted_score, top_reasons,
             signal_count, bullish_count, bearish_count, neutral_count,
             contradictions, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+           RETURNING id""",
         (
             topic,
             prediction.direction,
@@ -90,21 +112,21 @@ def save_prediction(
             datetime.now().isoformat(),
         ),
     )
-    pred_id = cursor.lastrowid
+    pred_id = cur.fetchone()["id"]
 
     for s in signals:
-        db.execute(
+        cur.execute(
             """INSERT INTO signals
                (prediction_id, description, direction, strength, reasoning, source_title)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s, %s)""",
             (pred_id, s.description, s.direction, s.strength, s.reasoning, s.source_title),
         )
 
     for title, url, summary, relevance, collected_at in sources:
-        db.execute(
+        cur.execute(
             """INSERT INTO sources
                (prediction_id, title, url, summary, relevance_score, collected_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s, %s)""",
             (pred_id, title, url, summary, relevance, collected_at),
         )
 
@@ -113,49 +135,58 @@ def save_prediction(
 
 
 def resolve_prediction(
-    db: sqlite3.Connection,
+    db,
     prediction_id: int,
     actual_outcome: str,
     notes: str = "",
 ) -> None:
     """Record the actual outcome for a prediction."""
-    db.execute(
+    cur = db.cursor()
+    cur.execute(
         """UPDATE predictions
-           SET actual_outcome = ?, outcome_notes = ?, resolved_at = ?
-           WHERE id = ?""",
+           SET actual_outcome = %s, outcome_notes = %s, resolved_at = %s
+           WHERE id = %s""",
         (actual_outcome, notes, datetime.now().isoformat(), prediction_id),
     )
     db.commit()
 
 
 def list_predictions(
-    db: sqlite3.Connection,
+    db,
     limit: int = 20,
     resolved_only: bool = False,
-) -> list[sqlite3.Row]:
+) -> list[dict]:
     """List past predictions."""
+    cur = db.cursor()
     query = "SELECT * FROM predictions"
     if resolved_only:
         query += " WHERE actual_outcome IS NOT NULL"
-    query += " ORDER BY created_at DESC LIMIT ?"
-    return db.execute(query, (limit,)).fetchall()
+    query += " ORDER BY created_at DESC LIMIT %s"
+    cur.execute(query, (limit,))
+    return [dict(row) for row in cur.fetchall()]
 
 
-def get_prediction_detail(db: sqlite3.Connection, prediction_id: int) -> Optional[dict]:
+def get_prediction_detail(db, prediction_id: int) -> Optional[dict]:
     """Get full prediction details including signals and sources."""
-    pred = db.execute("SELECT * FROM predictions WHERE id = ?", (prediction_id,)).fetchone()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM predictions WHERE id = %s", (prediction_id,))
+    pred = cur.fetchone()
     if not pred:
         return None
-    signals = db.execute("SELECT * FROM signals WHERE prediction_id = ?", (prediction_id,)).fetchall()
-    sources = db.execute("SELECT * FROM sources WHERE prediction_id = ?", (prediction_id,)).fetchall()
-    return {"prediction": dict(pred), "signals": [dict(s) for s in signals], "sources": [dict(s) for s in sources]}
+    cur.execute("SELECT * FROM signals WHERE prediction_id = %s", (prediction_id,))
+    sigs = [dict(row) for row in cur.fetchall()]
+    cur.execute("SELECT * FROM sources WHERE prediction_id = %s", (prediction_id,))
+    srcs = [dict(row) for row in cur.fetchall()]
+    return {"prediction": dict(pred), "signals": sigs, "sources": srcs}
 
 
-def get_calibration_stats(db: sqlite3.Connection) -> dict:
+def get_calibration_stats(db) -> dict:
     """Calculate accuracy stats from resolved predictions."""
-    resolved = db.execute(
+    cur = db.cursor()
+    cur.execute(
         "SELECT direction, confidence, actual_outcome FROM predictions WHERE actual_outcome IS NOT NULL"
-    ).fetchall()
+    )
+    resolved = cur.fetchall()
 
     if not resolved:
         return {"total": 0, "correct": 0, "accuracy": 0.0, "by_confidence": {}}

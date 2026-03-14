@@ -47,6 +47,8 @@ export default function FeedPage() {
     const [fetchResult, setFetchResult] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
     const [processResult, setProcessResult] = useState<string | null>(null);
+    const [runningPipeline, setRunningPipeline] = useState(false);
+    const [pipelineResult, setPipelineResult] = useState<string | null>(null);
 
     const loadFeed = useCallback(async () => {
           try {
@@ -86,6 +88,33 @@ export default function FeedPage() {
           finally { setProcessing(false); }
     }
 
+    async function handleRunPipeline() {
+          setRunningPipeline(true);
+          setPipelineResult(null);
+          try {
+                  const res = await fetch("/api/cron");
+                  const data = await res.json();
+                  if (!data.ok) {
+                            setPipelineResult("Pipeline failed.");
+                  } else {
+                            const steps = (data.pipeline as Array<Record<string, unknown>>) || [];
+                            const fetchStep = steps.find((s) => s.step === "fetch");
+                            const ingestStep = steps.find((s) => s.step === "ingest");
+                            const probStep = steps.find((s) => s.step === "probabilities");
+                            const parts: string[] = [];
+                            if (fetchStep && !fetchStep.error) parts.push(`${fetchStep.inserted ?? 0} new articles`);
+                            if (ingestStep && !ingestStep.error) parts.push(`${ingestStep.processed ?? 0} processed`);
+                            if (probStep && !probStep.error) parts.push(`${probStep.updated ?? probStep.probabilitiesUpdated ?? 0} probabilities updated`);
+                            setPipelineResult(`Pipeline complete: ${parts.join(", ") || "done"}.`);
+                  }
+                  await loadFeed();
+          } catch {
+                  setPipelineResult("Error running pipeline.");
+          } finally {
+                  setRunningPipeline(false);
+          }
+    }
+
     return (
           <div className="space-y-6">
                 <div className="flex items-start justify-between">
@@ -95,13 +124,17 @@ export default function FeedPage() {
                         </div>
                         <div className="flex flex-col items-end gap-2">
                                   <div className="flex gap-2">
-                                              <button onClick={handleFetch} disabled={fetching} className="rounded-md bg-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-600 disabled:opacity-40 transition-colors">
-                                                {fetching ? "Fetching RSS..." : "↓ Fetch RSS"}
+                                              <button onClick={handleRunPipeline} disabled={runningPipeline || fetching || processing} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40 transition-colors">
+                                                {runningPipeline ? "Running pipeline..." : "Run Full Pipeline"}
                                               </button>
-                                              <button onClick={handleIngest} disabled={processing || unprocessedCount === 0} className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium hover:bg-blue-600 disabled:opacity-40 transition-colors">
-                                                {processing ? "Processing..." : `⚡ Process ${unprocessedCount} Unprocessed`}
+                                              <button onClick={handleFetch} disabled={fetching || runningPipeline} className="rounded-md bg-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-600 disabled:opacity-40 transition-colors">
+                                                {fetching ? "Fetching RSS..." : "Fetch RSS"}
+                                              </button>
+                                              <button onClick={handleIngest} disabled={processing || unprocessedCount === 0 || runningPipeline} className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium hover:bg-blue-600 disabled:opacity-40 transition-colors">
+                                                {processing ? "Processing..." : `Process ${unprocessedCount} Unprocessed`}
                                               </button>
                                   </div>
+                          {pipelineResult && <span className="text-xs text-emerald-400">{pipelineResult}</span>}
                           {fetchResult && <span className="text-xs text-zinc-400">{fetchResult}</span>}
                           {processResult && <span className="text-xs text-zinc-400">{processResult}</span>}
                         </div>
@@ -131,7 +164,7 @@ export default function FeedPage() {
                   ) : events.length === 0 ? (
                     <div className="rounded-lg border border-zinc-800 p-8 text-center text-zinc-500">
                               <p className="text-lg mb-2">No news events yet</p>
-                              <p className="text-sm">Click <strong>↓ Fetch RSS</strong> to pull in the latest AI news.</p>
+                              <p className="text-sm">Click <strong>Fetch RSS</strong> to pull in the latest AI news.</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -147,7 +180,7 @@ export default function FeedPage() {
                                                           </span>
                                                                                                       )}
                                                                                     {event.extractedThesisIds && event.extractedThesisIds.length > 0 && (
-                                                          <span className="text-xs text-blue-400">→ {event.extractedThesisIds.length} thesis connection{event.extractedThesisIds.length > 1 ? "s" : ""}</span>
+                                                          <span className="text-xs text-blue-400">{"\u2192"} {event.extractedThesisIds.length} thesis connection{event.extractedThesisIds.length > 1 ? "s" : ""}</span>
                                                                                                       )}
                                                                                     {!event.processed && <span className="text-xs text-zinc-600 border border-zinc-700 px-1.5 py-0.5 rounded">unprocessed</span>}
                                                                                     </div>

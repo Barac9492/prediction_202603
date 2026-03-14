@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from typing import Optional
 
@@ -19,7 +20,7 @@ console = Console()
 @click.group()
 def main():
     """SignalTracker — Structured uncertainty management for VC decisions."""
-    pass
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 @main.command()
@@ -54,7 +55,8 @@ def analyze(topic: str, url: tuple, text: tuple, files: tuple):
 
     for f in files:
         try:
-            content = open(f).read()
+            with open(f) as fh:
+                content = fh.read()
             sources.append(collector.from_text(content, title=f))
             console.print(f"  [green]✓[/green] File: {f}")
         except Exception as e:
@@ -221,7 +223,9 @@ def resolve(prediction_id: int, outcome: str, notes: str):
     Example: signal-tracker resolve 1 bullish --notes "AI fund raised successfully"
     """
     db = storage.get_db()
-    pred = db.execute("SELECT * FROM predictions WHERE id = ?", (prediction_id,)).fetchone()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM predictions WHERE id = %s", (prediction_id,))
+    pred = cur.fetchone()
     if not pred:
         console.print(f"[red]Prediction #{prediction_id} not found.[/red]")
         db.close()

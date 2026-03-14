@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const client = new Anthropic();
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-6-20250415";
 
 const SUGGEST_PROMPT = `You are an expert investment analyst specializing in AI and technology.
 
@@ -80,12 +81,16 @@ export async function POST() {
 
   // 4. Call Claude
   const response = await client.messages.create({
-    model: "claude-opus-4-5",
+    model: CLAUDE_MODEL,
     max_tokens: 2000,
     messages: [{ role: "user", content: prompt }],
   });
 
-  const raw = response.content[0].type === "text" ? response.content[0].text : "";
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    return NextResponse.json({ error: "Claude returned no text content" }, { status: 500 });
+  }
+  const raw = block.text;
   let suggestions: Array<{
     title: string;
     description: string;
