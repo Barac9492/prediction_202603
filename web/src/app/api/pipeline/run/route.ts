@@ -21,6 +21,15 @@ export async function POST(req: NextRequest) {
 
   const steps: Record<string, unknown> = {};
 
+  // Step 0: Ingest Obsidian vault notes
+  try {
+    const { POST: ingestVault } = await import("@/app/api/vault/ingest/route");
+    const vaultRes = await ingestVault();
+    steps.vaultIngest = await vaultRes.json();
+  } catch (err) {
+    steps.vaultIngest = { error: String(err) };
+  }
+
   // Step 1: Fetch RSS feeds
   try {
     const { POST: fetchFeeds } = await import("@/app/api/feed/fetch/route");

@@ -154,6 +154,27 @@ export async function getNewsEvent(id: number) {
   return event ?? null;
 }
 
+export async function getNewsEventByUrl(url: string) {
+  const [event] = await db
+    .select()
+    .from(newsEvents)
+    .where(eq(newsEvents.url, url))
+    .limit(1);
+  return event ?? null;
+}
+
+export async function updateNewsEvent(
+  id: number,
+  data: Partial<{ title: string; content: string; publishedAt: Date }>,
+) {
+  const [updated] = await db
+    .update(newsEvents)
+    .set({ ...data, processed: false, ingestedAt: new Date() })
+    .where(eq(newsEvents.id, id))
+    .returning();
+  return updated;
+}
+
 // — Connection queries ————————————————————————————————————————
 
 export async function createConnection(data: {
