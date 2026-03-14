@@ -55,7 +55,8 @@ def analyze(topic: str, url: tuple, text: tuple, files: tuple):
 
     for f in files:
         try:
-            content = open(f).read()
+            with open(f) as fh:
+                content = fh.read()
             sources.append(collector.from_text(content, title=f))
             console.print(f"  [green]✓[/green] File: {f}")
         except Exception as e:

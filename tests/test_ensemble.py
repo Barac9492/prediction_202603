@@ -1,7 +1,7 @@
 """Tests for the ensemble module — signal aggregation and prediction logic."""
 
 from signal_tracker.ensemble import ensemble, detect_contradictions, Prediction
-from signal_tracker.extractor import Signal
+from signal_tracker.extractor import Signal, _strip_code_fences
 
 
 def _signal(direction: str, strength: int, source: str = "test") -> Signal:
@@ -113,3 +113,32 @@ class TestSignalProperties:
     def test_neutral_signed_strength_zero(self):
         s = _signal("neutral", 5)
         assert s.signed_strength == 0.0
+
+
+class TestStripCodeFences:
+    def test_no_fences(self):
+        assert _strip_code_fences('{"a": 1}') == '{"a": 1}'
+
+    def test_json_fences(self):
+        text = '```json\n{"a": 1}\n```'
+        assert _strip_code_fences(text) == '{"a": 1}'
+
+    def test_plain_fences(self):
+        text = '```\n{"a": 1}\n```'
+        assert _strip_code_fences(text) == '{"a": 1}'
+
+    def test_no_closing_fence(self):
+        text = '```json\n{"a": 1}'
+        assert _strip_code_fences(text) == '{"a": 1}'
+
+    def test_single_line_fence(self):
+        # Edge case: just "```" with nothing after
+        text = '```'
+        result = _strip_code_fences(text)
+        assert result == ""
+
+    def test_multiline_content(self):
+        text = '```json\n{\n  "a": 1,\n  "b": 2\n}\n```'
+        result = _strip_code_fences(text)
+        assert '"a": 1' in result
+        assert '"b": 2' in result

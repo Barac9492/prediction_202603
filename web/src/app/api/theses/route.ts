@@ -69,6 +69,8 @@ export async function PATCH(req: NextRequest) {
     updates.isActive = true;
   } else if (updates.status === "archived") {
     updates.isActive = false;
+  } else if (updates.status === "pending_review") {
+    updates.isActive = false;
   }
 
   const thesis = await updateThesis(parseInt(id), updates);

@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -22,7 +23,11 @@ from typing import Optional
 import anthropic
 import click
 
+from signal_tracker.extractor import _strip_code_fences
+
 logger = logging.getLogger(__name__)
+
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6-20250415")
 
 GRAPH_EXTRACTION_PROMPT = """\
 You are an expert investment analyst specializing in AI and technology sectors.
@@ -91,17 +96,18 @@ def extract_graph_intelligence(
     )
 
     response = client.messages.create(
-        model="claude-sonnet-4-6-20250415",
+        model=CLAUDE_MODEL,
         max_tokens=1000,
         messages=[{"role": "user", "content": prompt}],
     )
 
     raw = response.content[0].text.strip()
-    # Strip markdown fences if present
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
+    raw = _strip_code_fences(raw)
 
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse Claude response as JSON: {e}\nRaw: {raw[:500]}")
     return ExtractionResult(
         ai_relevance=int(data.get("ai_relevance", 1)),
         sentiment=data.get("sentiment", "neutral"),

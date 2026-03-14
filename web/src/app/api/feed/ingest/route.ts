@@ -7,6 +7,20 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const client = new Anthropic();
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-6-20250415";
+
+function stripCodeFences(text: string): string {
+  text = text.trim();
+  if (text.startsWith("```")) {
+    const lines = text.split("\n");
+    lines.shift();
+    if (lines.length && lines[lines.length - 1].trim() === "```") {
+      lines.pop();
+    }
+    text = lines.join("\n");
+  }
+  return text.trim();
+}
 
 const GRAPH_EXTRACTION_PROMPT = `You are an expert investment analyst specializing in AI and technology sectors.
 
@@ -75,13 +89,22 @@ export async function POST(req: NextRequest) {
         .replace("{theses}", thesesText || "No active theses yet.");
 
       const response = await client.messages.create({
-        model: "claude-sonnet-4-6-20250415",
+        model: CLAUDE_MODEL,
         max_tokens: 1000,
         messages: [{ role: "user", content: prompt }],
       });
 
-      const raw = response.content[0].type === "text" ? response.content[0].text : "";
-      const parsed = JSON.parse(raw.replace(/```json?\n?/g, "").replace(/```/g, "").trim());
+      const block = response.content[0];
+      if (!block || block.type !== "text") {
+        throw new Error("Claude returned no text content");
+      }
+      const cleanedRaw = stripCodeFences(block.text);
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(cleanedRaw);
+      } catch (e) {
+        throw new Error(`Failed to parse Claude response: ${e instanceof Error ? e.message : e}`);
+      }
 
       // 3. Mark as processed with extracted metadata
       await markNewsProcessed(event.id, {

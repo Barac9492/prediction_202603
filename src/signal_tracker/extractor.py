@@ -4,11 +4,28 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 
 import anthropic
 
 from signal_tracker.collector import Source
+
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6-20250415")
+
+
+def _strip_code_fences(text: str) -> str:
+    """Remove markdown code fences from LLM output."""
+    text = text.strip()
+    if text.startswith("```"):
+        # Remove opening fence line (e.g. ```json)
+        lines = text.split("\n")
+        lines = lines[1:]  # drop first line
+        # Remove closing fence if present
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines)
+    return text.strip()
 
 EXTRACTION_PROMPT = """\
 You are an expert investment analyst. Analyze the following source material and extract investment signals relevant to the given topic.
@@ -77,7 +94,7 @@ def extract_signals(source: Source, topic: str) -> ExtractionResult:
     content = source.content[:15000]
 
     response = client.messages.create(
-        model="claude-sonnet-4-6-20250415",
+        model=CLAUDE_MODEL,
         max_tokens=2000,
         messages=[{
             "role": "user",
@@ -86,10 +103,12 @@ def extract_signals(source: Source, topic: str) -> ExtractionResult:
     )
 
     raw = response.content[0].text.strip()
-    # Strip markdown fences if present
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
-    data = json.loads(raw)
+    raw = _strip_code_fences(raw)
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse Claude response as JSON: {e}\nRaw: {raw[:500]}")
 
     signals = [
         Signal(
