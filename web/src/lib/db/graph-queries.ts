@@ -5,6 +5,8 @@ import {
   newsEvents,
   connections,
   backtestRuns,
+  entityObservations,
+  signalClusters,
 } from "./schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
@@ -13,6 +15,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 export async function upsertEntity(data: {
   name: string;
   type: string;
+  category?: string;
   description?: string;
   aliases?: string[];
 }) {
@@ -340,4 +343,301 @@ export async function reinforceConnection(connectionId: number, wasCorrect: bool
   const delta = wasCorrect ? 0.1 : -0.05;
   const newWeight = Math.max(0.1, Math.min(2.0, currentWeight + delta));
   await db.update(connections).set({ adjustedWeight: newWeight }).where(eq(connections.id, connectionId));
+}
+
+// — Entity graph queries ————————————————————————————————————————
+
+export async function getEntityConnections(entityId: number) {
+  const asFrom = await db
+    .select()
+    .from(connections)
+    .where(and(eq(connections.fromType, "entity"), eq(connections.fromId, entityId)));
+  const asTo = await db
+    .select()
+    .from(connections)
+    .where(and(eq(connections.toType, "entity"), eq(connections.toId, entityId)));
+  const map = new Map<number, typeof asFrom[number]>();
+  for (const c of [...asFrom, ...asTo]) map.set(c.id, c);
+  return [...map.values()];
+}
+
+export async function getEntitiesForThesis(thesisId: number) {
+  // Find entities connected to news events that connect to this thesis
+  const thesisConns = await db
+    .select({ sourceNewsId: connections.sourceNewsId })
+    .from(connections)
+    .where(
+      and(
+        eq(connections.toType, "thesis"),
+        eq(connections.toId, thesisId),
+        eq(connections.fromType, "news_event")
+      )
+    );
+  const newsIds = thesisConns
+    .map((c) => c.sourceNewsId)
+    .filter((id): id is number => id !== null);
+  if (newsIds.length === 0) return [];
+
+  // Get entities connected to those news events
+  const entityConns = await db
+    .select()
+    .from(connections)
+    .where(
+      and(
+        eq(connections.fromType, "news_event"),
+        eq(connections.toType, "entity")
+      )
+    );
+  const entityIds = entityConns
+    .filter((c) => newsIds.includes(c.fromId))
+    .map((c) => c.toId);
+  if (entityIds.length === 0) return [];
+
+  const uniqueIds = [...new Set(entityIds)];
+  const result = await db
+    .select()
+    .from(entities)
+    .where(sql`${entities.id} IN (${sql.join(uniqueIds.map((id) => sql`${id}`), sql`, `)})`);
+  return result;
+}
+
+export async function getEntityNetwork(entityId: number, depth = 1) {
+  const entity = await getEntity(entityId);
+  if (!entity) return null;
+
+  const conns = await getEntityConnections(entityId);
+
+  // Collect neighbor entity IDs
+  const neighborIds = new Set<number>();
+  for (const c of conns) {
+    if (c.fromType === "entity" && c.fromId !== entityId) neighborIds.add(c.fromId);
+    if (c.toType === "entity" && c.toId !== entityId) neighborIds.add(c.toId);
+  }
+
+  const neighbors =
+    neighborIds.size > 0
+      ? await db
+          .select()
+          .from(entities)
+          .where(sql`${entities.id} IN (${sql.join([...neighborIds].map((id) => sql`${id}`), sql`, `)})`)
+      : [];
+
+  // Get connected theses
+  const thesisConns = conns.filter(
+    (c) => c.fromType === "thesis" || c.toType === "thesis"
+  );
+  const thesisIds = new Set<number>();
+  for (const c of thesisConns) {
+    if (c.fromType === "thesis") thesisIds.add(c.fromId);
+    if (c.toType === "thesis") thesisIds.add(c.toId);
+  }
+  const relatedTheses =
+    thesisIds.size > 0
+      ? await db
+          .select()
+          .from(theses)
+          .where(sql`${theses.id} IN (${sql.join([...thesisIds].map((id) => sql`${id}`), sql`, `)})`)
+      : [];
+
+  // Get connected news
+  const newsConns = conns.filter(
+    (c) => c.fromType === "news_event" || c.toType === "news_event"
+  );
+  const newsIds = new Set<number>();
+  for (const c of newsConns) {
+    if (c.fromType === "news_event") newsIds.add(c.fromId);
+    if (c.toType === "news_event") newsIds.add(c.toId);
+  }
+  const relatedNews =
+    newsIds.size > 0
+      ? await db
+          .select()
+          .from(newsEvents)
+          .where(sql`${newsEvents.id} IN (${sql.join([...newsIds].map((id) => sql`${id}`), sql`, `)})`)
+      : [];
+
+  return { entity, connections: conns, neighbors, relatedTheses, relatedNews };
+}
+
+// — Entity observation queries ————————————————————————————————
+
+export async function createEntityObservation(data: {
+  entityId: number;
+  attribute: string;
+  value: string;
+  numericValue?: number;
+  confidence: number;
+  sourceNewsId?: number;
+  observedAt?: Date;
+}) {
+  const [obs] = await db
+    .insert(entityObservations)
+    .values({ ...data, observedAt: data.observedAt ?? new Date() })
+    .returning();
+  return obs;
+}
+
+export async function getEntityTimeline(entityId: number, attribute?: string) {
+  if (attribute) {
+    return db
+      .select()
+      .from(entityObservations)
+      .where(
+        and(
+          eq(entityObservations.entityId, entityId),
+          eq(entityObservations.attribute, attribute)
+        )
+      )
+      .orderBy(desc(entityObservations.observedAt));
+  }
+  return db
+    .select()
+    .from(entityObservations)
+    .where(eq(entityObservations.entityId, entityId))
+    .orderBy(desc(entityObservations.observedAt));
+}
+
+// — Signal cluster queries ————————————————————————————————
+
+export async function createSignalCluster(data: {
+  title: string;
+  description: string;
+  pattern: string;
+  confidence: number;
+  connectionIds?: number[];
+  entityIds?: number[];
+  thesisIds?: number[];
+  metadata?: Record<string, unknown>;
+}) {
+  const [cluster] = await db
+    .insert(signalClusters)
+    .values({ ...data, detectedAt: new Date(), lastUpdated: new Date() })
+    .returning();
+  return cluster;
+}
+
+export async function updateSignalCluster(
+  id: number,
+  data: Partial<{
+    title: string;
+    description: string;
+    pattern: string;
+    confidence: number;
+    status: string;
+    connectionIds: number[];
+    entityIds: number[];
+    thesisIds: number[];
+    metadata: Record<string, unknown>;
+  }>
+) {
+  const [updated] = await db
+    .update(signalClusters)
+    .set({ ...data, lastUpdated: new Date() })
+    .where(eq(signalClusters.id, id))
+    .returning();
+  return updated;
+}
+
+export async function listSignalClusters(status?: string) {
+  if (status) {
+    return db
+      .select()
+      .from(signalClusters)
+      .where(eq(signalClusters.status, status))
+      .orderBy(desc(signalClusters.detectedAt));
+  }
+  return db
+    .select()
+    .from(signalClusters)
+    .orderBy(desc(signalClusters.detectedAt));
+}
+
+export async function getClusterDetails(clusterId: number) {
+  const [cluster] = await db
+    .select()
+    .from(signalClusters)
+    .where(eq(signalClusters.id, clusterId));
+  if (!cluster) return null;
+
+  const connIds = (cluster.connectionIds || []) as number[];
+  const entIds = (cluster.entityIds || []) as number[];
+  const thIds = (cluster.thesisIds || []) as number[];
+
+  const clusterConnections =
+    connIds.length > 0
+      ? await db
+          .select()
+          .from(connections)
+          .where(sql`${connections.id} IN (${sql.join(connIds.map((id) => sql`${id}`), sql`, `)})`)
+      : [];
+
+  const clusterEntities =
+    entIds.length > 0
+      ? await db
+          .select()
+          .from(entities)
+          .where(sql`${entities.id} IN (${sql.join(entIds.map((id) => sql`${id}`), sql`, `)})`)
+      : [];
+
+  const clusterTheses =
+    thIds.length > 0
+      ? await db
+          .select()
+          .from(theses)
+          .where(sql`${theses.id} IN (${sql.join(thIds.map((id) => sql`${id}`), sql`, `)})`)
+      : [];
+
+  return { cluster, connections: clusterConnections, entities: clusterEntities, theses: clusterTheses };
+}
+
+// — Bulk entity queries for dashboard ————————————————————————
+
+export async function getRecentEntityObservations(limit = 20) {
+  return db
+    .select({
+      observation: entityObservations,
+      entityName: entities.name,
+      entityCategory: entities.category,
+    })
+    .from(entityObservations)
+    .innerJoin(entities, eq(entityObservations.entityId, entities.id))
+    .orderBy(desc(entityObservations.observedAt))
+    .limit(limit);
+}
+
+export async function getEntitiesWithSignalCounts() {
+  // Entities ordered by connection count (most connected first)
+  const result = await db
+    .select({
+      entity: entities,
+      signalCount: sql<number>`count(${connections.id})::int`,
+    })
+    .from(entities)
+    .leftJoin(
+      connections,
+      sql`(${connections.fromType} = 'entity' AND ${connections.fromId} = ${entities.id})
+       OR (${connections.toType} = 'entity' AND ${connections.toId} = ${entities.id})`
+    )
+    .groupBy(entities.id)
+    .orderBy(sql`count(${connections.id}) DESC`);
+  return result;
+}
+
+export async function getUncoveredEntities() {
+  // Entities with connections but no thesis coverage
+  const allEntities = await getEntitiesWithSignalCounts();
+  const entitiesWithThesis = new Set<number>();
+
+  // Find entities that have a path to a thesis
+  const entityThesisConns = await db
+    .select({ entityId: connections.fromId })
+    .from(connections)
+    .where(
+      and(eq(connections.fromType, "entity"), eq(connections.toType, "thesis"))
+    );
+  for (const c of entityThesisConns) entitiesWithThesis.add(c.entityId);
+
+  return allEntities.filter(
+    (e) => e.signalCount > 0 && !entitiesWithThesis.has(e.entity.id)
+  );
 }

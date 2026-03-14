@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { insertNewsEvent, listNewsEvents, markNewsProcessed, listTheses, upsertThesisInteraction } from "@/lib/db/graph-queries";
+import {
+  insertNewsEvent,
+  listNewsEvents,
+  markNewsProcessed,
+  listTheses,
+  upsertThesisInteraction,
+  upsertEntity,
+  createConnection,
+  createEntityObservation,
+} from "@/lib/db/graph-queries";
 import { snapshotAllProbabilities } from "@/lib/db/probability";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -37,16 +46,27 @@ Extract the following:
 
 1. **AI Relevance** (1-5): How relevant is this to AI investment thesis?
 2. **Sentiment**: "bullish", "bearish", or "neutral" for AI/tech investment
-3. **Entities Mentioned**: List of specific companies, models, technologies, people. Use exact names.
-4. **Thesis Connections**: For each active thesis, does this article SUPPORT, CONTRADICT, or is it UNRELATED?
-5. **Thesis Interactions**: Based on this article, do any of the active theses REINFORCE or CONTRADICT each other? Only include if the article provides evidence of a link between two theses.
-6. **Key Insight**: 1-2 sentence summary of the investment implication
+3. **Entities**: Structured list of companies, people, technologies, products, concepts, regulatory bodies mentioned. Include category and role.
+4. **Entity Relations**: Relationships between entities mentioned in the article.
+5. **Entity Observations**: Observable attributes or trends about entities from this article.
+6. **Thesis Connections**: For each active thesis, does this article SUPPORT, CONTRADICT, or is it UNRELATED?
+7. **Thesis Interactions**: Based on this article, do any of the active theses REINFORCE or CONTRADICT each other? Only include if the article provides evidence of a link between two theses.
+8. **Key Insight**: 1-2 sentence summary of the investment implication
 
 Respond ONLY with valid JSON:
 {
   "ai_relevance": 1-5,
   "sentiment": "bullish|bearish|neutral",
-  "entities": ["OpenAI", "NVIDIA", "GPT-4", ...],
+  "entities": [
+    { "name": "NVIDIA", "category": "company", "role": "SUBJECT" },
+    { "name": "H100", "category": "product", "role": "MENTIONED" }
+  ],
+  "entity_relations": [
+    { "from": "NVIDIA", "to": "TSMC", "relation": "DEPENDS_ON", "confidence": 0.9 }
+  ],
+  "entity_observations": [
+    { "entity": "NVIDIA", "attribute": "hiring_trend", "value": "aggressive inference team expansion", "numericValue": null, "confidence": 0.8 }
+  ],
   "thesis_connections": [
     {
       "thesis_id": 1,
@@ -116,20 +136,65 @@ export async function POST(req: NextRequest) {
         throw new Error(`Failed to parse Claude response: ${e instanceof Error ? e.message : e}`);
       }
 
-      // 3. Mark as processed with extracted metadata
+      // 3. Extract entity names for backward compat storage
+      const entityNames = (parsed.entities || []).map(
+        (e: { name: string } | string) => (typeof e === "string" ? e : e.name)
+      );
+
+      // 4. Mark as processed with extracted metadata
       await markNewsProcessed(event.id, {
         aiRelevance: parsed.ai_relevance,
         sentiment: parsed.sentiment,
-        extractedEntities: parsed.entities || [],
+        extractedEntities: entityNames,
         extractedThesisIds: (parsed.thesis_connections || [])
           .filter((tc: { relation: string }) => tc.relation !== "UNRELATED")
           .map((tc: { thesis_id: number }) => tc.thesis_id),
       });
 
-      // 4. Create graph connections for relevant theses
-      const { createConnection } = await import("@/lib/db/graph-queries");
+      // 5. Upsert entities and create news→entity connections
+      const entityMap = new Map<string, number>(); // name → id
+      for (const ent of parsed.entities || []) {
+        const entityData = typeof ent === "string"
+          ? { name: ent, type: "unknown", category: undefined }
+          : { name: ent.name, type: ent.category || "unknown", category: ent.category };
+        const entity = await upsertEntity(entityData);
+        entityMap.set(entityData.name, entity.id);
+
+        // Create news_event → entity MENTIONS connection
+        await createConnection({
+          fromType: "news_event",
+          fromId: event.id,
+          toType: "entity",
+          toId: entity.id,
+          relation: "MENTIONS",
+          confidence: 0.9,
+          reasoning: typeof ent === "string" ? undefined : `Role: ${ent.role}`,
+          sourceNewsId: event.id,
+        });
+      }
+
+      // 6. Create entity→entity connections
+      for (const rel of parsed.entity_relations || []) {
+        const fromId = entityMap.get(rel.from);
+        const toId = entityMap.get(rel.to);
+        if (fromId && toId) {
+          await createConnection({
+            fromType: "entity",
+            fromId,
+            toType: "entity",
+            toId,
+            relation: rel.relation,
+            confidence: rel.confidence || 0.7,
+            sourceNewsId: event.id,
+          });
+        }
+      }
+
+      // 7. Create graph connections for relevant theses
+      const relevantThesisIds = new Set<number>();
       for (const tc of parsed.thesis_connections || []) {
         if (tc.relation === "UNRELATED") continue;
+        relevantThesisIds.add(tc.thesis_id);
         await createConnection({
           fromType: "news_event",
           fromId: event.id,
@@ -143,7 +208,23 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // 5. Create thesis<->thesis interactions
+      // 8. Create entity→thesis connections for entities in thesis-connected articles
+      for (const [entityName, entityId] of entityMap) {
+        for (const thesisId of relevantThesisIds) {
+          await createConnection({
+            fromType: "entity",
+            fromId: entityId,
+            toType: "thesis",
+            toId: thesisId,
+            relation: "RELEVANT_TO",
+            confidence: 0.6,
+            reasoning: `Entity "${entityName}" appeared in article connected to thesis`,
+            sourceNewsId: event.id,
+          });
+        }
+      }
+
+      // 9. Create thesis↔thesis interactions
       for (const ti of parsed.thesis_interactions || []) {
         if (!ti.thesis_a_id || !ti.thesis_b_id) continue;
         await upsertThesisInteraction({
@@ -156,15 +237,33 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // 10. Insert entity observations
+      for (const obs of parsed.entity_observations || []) {
+        const entityId = entityMap.get(obs.entity);
+        if (!entityId) continue;
+        await createEntityObservation({
+          entityId,
+          attribute: obs.attribute,
+          value: obs.value,
+          numericValue: obs.numericValue ?? undefined,
+          confidence: obs.confidence || 0.5,
+          sourceNewsId: event.id,
+          observedAt: event.publishedAt ?? new Date(),
+        });
+      }
+
       results.push({
         id: event.id,
         title: event.title,
         aiRelevance: parsed.ai_relevance,
         sentiment: parsed.sentiment,
+        entities: entityNames.length,
+        entityRelations: (parsed.entity_relations || []).length,
         connections: (parsed.thesis_connections || []).filter(
           (tc: { relation: string }) => tc.relation !== "UNRELATED"
         ).length,
         thesisInteractions: (parsed.thesis_interactions || []).length,
+        observations: (parsed.entity_observations || []).length,
       });
     } catch (err) {
       console.error(`Failed to process news event ${event.id}:`, err);

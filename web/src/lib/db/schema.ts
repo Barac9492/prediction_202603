@@ -59,6 +59,7 @@ export const entities = pgTable(
     id: serial("id").primaryKey(),
     name: text("name").notNull().unique(),
     type: text("type").notNull(),
+    category: text("category"), // company, person, technology, product, concept, regulatory_body
     description: text("description"),
     aliases: jsonb("aliases").$type<string[]>().default([]),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
@@ -148,6 +149,45 @@ export const backtestRuns = pgTable("backtest_runs", {
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
+});
+
+// — entity observations ——————————————————————————————————————————
+
+export const entityObservations = pgTable(
+  "entity_observations",
+  {
+    id: serial("id").primaryKey(),
+    entityId: integer("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    attribute: text("attribute").notNull(), // hiring_trend, revenue_growth, competitive_position, market_share
+    value: text("value").notNull(), // accelerating, +40% YoY, strengthening
+    numericValue: real("numeric_value"),
+    confidence: real("confidence").notNull().default(0.5),
+    sourceNewsId: integer("source_news_id").references(() => newsEvents.id),
+    observedAt: timestamp("observed_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("entity_obs_entity_attr_idx").on(t.entityId, t.attribute, t.observedAt),
+  ]
+);
+
+// — signal clusters ——————————————————————————————————————————
+
+export const signalClusters = pgTable("signal_clusters", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  pattern: text("pattern").notNull(), // convergence, divergence, acceleration, reversal
+  confidence: real("confidence").notNull().default(0.5),
+  status: text("status").notNull().default("active"), // active, resolved, stale
+  connectionIds: jsonb("connection_ids").$type<number[]>().default([]),
+  entityIds: jsonb("entity_ids").$type<number[]>().default([]),
+  thesisIds: jsonb("thesis_ids").$type<number[]>().default([]),
+  detectedAt: timestamp("detected_at").notNull().defaultNow(),
+  lastUpdated: timestamp("last_updated").notNull().defaultNow(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
 });
 
 // — probability tracking ——————————————————————————————————————————
