@@ -1,18 +1,19 @@
-import Link from "next/link";
+import { getCurrentProbabilities } from "@/lib/db/probability";
+import { HomeGrid } from "@/components/home-grid";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col items-center justify-center py-24">
-      <h1 className="mb-4 text-4xl font-bold">SignalTracker</h1>
-      <p className="mb-8 text-lg text-zinc-400">
-        Extract signals from sources. Track prediction accuracy over time.
-      </p>
-      <Link
-        href="/analyze"
-        className="rounded-md bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700"
-      >
-        Start Analysis
-      </Link>
-    </div>
-  );
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const theses = await getCurrentProbabilities();
+
+  // Sort by absolute momentum for trending
+  const trending = [...theses]
+    .filter((t) => t.momentum !== null)
+    .sort((a, b) => Math.abs(b.momentum ?? 0) - Math.abs(a.momentum ?? 0))
+    .slice(0, 5);
+
+  // Extract unique domains for category pills
+  const domains = Array.from(new Set(theses.map((t) => t.domain))).sort();
+
+  return <HomeGrid theses={theses} trending={trending} domains={domains} />;
 }
