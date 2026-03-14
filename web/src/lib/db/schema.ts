@@ -190,6 +190,26 @@ export const signalClusters = pgTable("signal_clusters", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
 });
 
+// — recommendations ——————————————————————————————————————————
+
+export const recommendations = pgTable("recommendations", {
+  id: serial("id").primaryKey(),
+  thesisId: integer("thesis_id").references(() => theses.id),
+  action: text("action").notNull(), // BUY, SELL, HOLD, WATCH, AVOID
+  asset: text("asset").notNull(),
+  conviction: real("conviction").notNull(), // 0-1
+  timeframeDays: integer("timeframe_days").notNull(),
+  deadline: timestamp("deadline").notNull(),
+  rationale: text("rationale").notNull(),
+  status: text("status").notNull().default("active"), // active, expired, resolved_correct, resolved_incorrect
+  outcomeNotes: text("outcome_notes"),
+  brierScore: real("brier_score"),
+  resolvedAt: timestamp("resolved_at"),
+  probabilityAtCreation: real("probability_at_creation"),
+  probabilityAtResolution: real("probability_at_resolution"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // — probability tracking ——————————————————————————————————————————
 export const thesisProbabilitySnapshots = pgTable(
   "thesis_probability_snapshots",

@@ -82,6 +82,37 @@ export async function POST(req: NextRequest) {
     steps.signalFusion = { error: String(err) };
   }
 
+  // Step 6: Evaluate expired recommendations
+  let resolvedCount = 0;
+  try {
+    const { evaluateExpiredRecs } = await import("@/lib/recommendations/evaluator");
+    const evalResult = await evaluateExpiredRecs();
+    steps.recEvaluate = evalResult;
+    resolvedCount = evalResult.evaluated;
+  } catch (err) {
+    steps.recEvaluate = { error: String(err) };
+  }
+
+  // Step 7: Generate new recommendations (if few active)
+  try {
+    const { generateRecommendations } = await import("@/lib/recommendations/generator");
+    const genResult = await generateRecommendations();
+    steps.recGenerate = genResult;
+  } catch (err) {
+    steps.recGenerate = { error: String(err) };
+  }
+
+  // Step 8: Refine backtest params (if any recs were resolved)
+  if (resolvedCount > 0) {
+    try {
+      const { refineParams } = await import("@/lib/backtest/refiner");
+      const refineResult = await refineParams();
+      steps.backtestRefine = refineResult;
+    } catch (err) {
+      steps.backtestRefine = { error: String(err) };
+    }
+  }
+
   return NextResponse.json({
     completedAt: new Date().toISOString(),
     steps,

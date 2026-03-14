@@ -7,8 +7,9 @@ import {
   backtestRuns,
   entityObservations,
   signalClusters,
+  recommendations,
 } from "./schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, lte } from "drizzle-orm";
 
 // — Entity queries ————————————————————————————————————————————
 
@@ -642,6 +643,89 @@ export async function getEntitiesWithSignalCounts() {
     .groupBy(entities.id)
     .orderBy(sql`count(${connections.id}) DESC`);
   return result;
+}
+
+// — Recommendation queries ————————————————————————————————
+
+export async function insertRecommendation(data: {
+  thesisId?: number;
+  action: string;
+  asset: string;
+  conviction: number;
+  timeframeDays: number;
+  deadline: Date;
+  rationale: string;
+  probabilityAtCreation?: number;
+}) {
+  const [rec] = await db.insert(recommendations).values(data).returning();
+  return rec;
+}
+
+export async function listRecommendations({
+  status,
+  limit = 50,
+}: { status?: string; limit?: number } = {}) {
+  if (status) {
+    return db
+      .select()
+      .from(recommendations)
+      .where(eq(recommendations.status, status))
+      .orderBy(desc(recommendations.createdAt))
+      .limit(limit);
+  }
+  return db
+    .select()
+    .from(recommendations)
+    .orderBy(desc(recommendations.createdAt))
+    .limit(limit);
+}
+
+export async function getExpiredRecommendations() {
+  return db
+    .select()
+    .from(recommendations)
+    .where(
+      and(
+        eq(recommendations.status, "active"),
+        lte(recommendations.deadline, new Date())
+      )
+    )
+    .orderBy(desc(recommendations.deadline));
+}
+
+export async function resolveRecommendation(
+  id: number,
+  data: {
+    status: string;
+    outcomeNotes?: string;
+    brierScore?: number;
+    probabilityAtResolution?: number;
+  }
+) {
+  const [updated] = await db
+    .update(recommendations)
+    .set({ ...data, resolvedAt: new Date() })
+    .where(eq(recommendations.id, id))
+    .returning();
+  return updated;
+}
+
+export async function getActiveRecommendationForAsset(
+  asset: string,
+  action: string
+) {
+  const [rec] = await db
+    .select()
+    .from(recommendations)
+    .where(
+      and(
+        eq(recommendations.asset, asset),
+        eq(recommendations.action, action),
+        eq(recommendations.status, "active")
+      )
+    )
+    .limit(1);
+  return rec ?? null;
 }
 
 export async function getUncoveredEntities() {

@@ -151,9 +151,12 @@ export async function computeThesisProbabilityAtTime(
   };
 }
 
-/** Convenience wrapper: compute probability at current time with default params */
+/** Convenience wrapper: compute probability at current time with active params */
 export async function computeThesisProbability(thesisId: number): Promise<ProbabilityResult> {
-  return computeThesisProbabilityAtTime(thesisId, new Date());
+  // Lazy import to avoid circular dependency
+  const { getActiveParams } = await import("@/lib/backtest/refiner");
+  const params = await getActiveParams();
+  return computeThesisProbabilityAtTime(thesisId, new Date(), params);
 }
 
 export async function snapshotAllProbabilities(): Promise<Array<{
