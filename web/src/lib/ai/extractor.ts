@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { EXTRACTION_PROMPT } from "./prompt";
 import { Signal, ExtractionResult, SourceData } from "../core/types";
 
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-6-20250415";
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-20250514";
 
 function stripCodeFences(text: string): string {
   text = text.trim();

@@ -6,7 +6,7 @@ import {
   listRecommendations,
 } from "@/lib/db/graph-queries";
 
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-6-20250415";
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-20250514";
 
 interface GeneratedRec {
   action: "BUY" | "SELL" | "HOLD" | "WATCH" | "AVOID";

@@ -11,7 +11,7 @@ import anthropic
 
 from signal_tracker.collector import Source
 
-CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6-20250415")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 
 
 def _strip_code_fences(text: str) -> str:

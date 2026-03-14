@@ -27,7 +27,7 @@ from signal_tracker.extractor import _strip_code_fences
 
 logger = logging.getLogger(__name__)
 
-CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6-20250415")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 
 GRAPH_EXTRACTION_PROMPT = """\
 You are an expert investment analyst specializing in AI and technology sectors.
