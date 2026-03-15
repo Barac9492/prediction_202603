@@ -1,6 +1,6 @@
 import { db } from "./index";
 import { recommendations } from "./schema";
-import { sql, and, ne } from "drizzle-orm";
+import { sql, and, ne, eq } from "drizzle-orm";
 
 type ResolvedRec = {
   id: number;
@@ -17,15 +17,15 @@ type ResolvedRec = {
   resolvedAt: Date | null;
 };
 
-async function getResolvedRecs(): Promise<ResolvedRec[]> {
+async function getResolvedRecs(workspaceId: string): Promise<ResolvedRec[]> {
   return db
     .select()
     .from(recommendations)
-    .where(ne(recommendations.status, "active")) as unknown as Promise<ResolvedRec[]>;
+    .where(and(eq(recommendations.workspaceId, workspaceId), ne(recommendations.status, "active"))) as unknown as Promise<ResolvedRec[]>;
 }
 
-export async function getHitRateByConvictionQuintile() {
-  const recs = await getResolvedRecs();
+export async function getHitRateByConvictionQuintile(workspaceId: string) {
+  const recs = await getResolvedRecs(workspaceId);
   if (recs.length === 0) return [];
 
   // Sort by conviction and bucket into quintiles
@@ -59,8 +59,8 @@ export async function getHitRateByConvictionQuintile() {
   return quintiles;
 }
 
-export async function getReturnsByAction() {
-  const recs = await getResolvedRecs();
+export async function getReturnsByAction(workspaceId: string) {
+  const recs = await getResolvedRecs(workspaceId);
 
   const actions = ["BUY", "SELL", "HOLD", "WATCH", "AVOID"];
   return actions
@@ -89,8 +89,8 @@ export async function getReturnsByAction() {
     .filter(Boolean);
 }
 
-export async function getCumulativeReturns() {
-  const recs = await getResolvedRecs();
+export async function getCumulativeReturns(workspaceId: string) {
+  const recs = await getResolvedRecs(workspaceId);
   const withReturns = recs
     .filter((r) => r.actualReturn !== null && r.resolvedAt !== null)
     .sort(
@@ -109,8 +109,8 @@ export async function getCumulativeReturns() {
   });
 }
 
-export async function getWorstMisses(limit = 10) {
-  const recs = await getResolvedRecs();
+export async function getWorstMisses(workspaceId: string, limit = 10) {
+  const recs = await getResolvedRecs(workspaceId);
   return recs
     .filter((r) => r.status === "resolved_incorrect")
     .sort((a, b) => b.conviction - a.conviction)
@@ -126,8 +126,8 @@ export async function getWorstMisses(limit = 10) {
     }));
 }
 
-export async function getSharpeRatio() {
-  const recs = await getResolvedRecs();
+export async function getSharpeRatio(workspaceId: string) {
+  const recs = await getResolvedRecs(workspaceId);
   const returns = recs
     .map((r) => r.actualReturn)
     .filter((r): r is number => r !== null);
@@ -160,8 +160,8 @@ export async function getSharpeRatio() {
   return (mean / stdev) * annualizationFactor;
 }
 
-export async function getMaxDrawdown() {
-  const recs = await getResolvedRecs();
+export async function getMaxDrawdown(workspaceId: string) {
+  const recs = await getResolvedRecs(workspaceId);
   const withReturns = recs
     .filter((r) => r.actualReturn !== null && r.resolvedAt !== null)
     .sort(
@@ -206,8 +206,8 @@ export async function getMaxDrawdown() {
   };
 }
 
-export async function getProfitFactor() {
-  const recs = await getResolvedRecs();
+export async function getProfitFactor(workspaceId: string) {
+  const recs = await getResolvedRecs(workspaceId);
   const returns = recs
     .map((r) => r.actualReturn)
     .filter((r): r is number => r !== null);
@@ -219,8 +219,8 @@ export async function getProfitFactor() {
   return gains / losses;
 }
 
-export async function getMagnitudeAnalysis() {
-  const recs = await getResolvedRecs();
+export async function getMagnitudeAnalysis(workspaceId: string) {
+  const recs = await getResolvedRecs(workspaceId);
   const withReturns = recs.filter(
     (r) => r.actualReturn !== null
   );
@@ -257,8 +257,8 @@ export async function getMagnitudeAnalysis() {
   });
 }
 
-export async function getRollingAccuracy(windows: number[] = [30, 60, 90]) {
-  const recs = await getResolvedRecs();
+export async function getRollingAccuracy(workspaceId: string, windows: number[] = [30, 60, 90]) {
+  const recs = await getResolvedRecs(workspaceId);
   const now = Date.now();
 
   return windows.map((days) => {

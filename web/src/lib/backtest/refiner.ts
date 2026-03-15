@@ -11,11 +11,11 @@ const IMPROVEMENT_THRESHOLD = 0.05; // 5% improvement required
  * Reads from the latest successful refinement in backtestRuns,
  * falling back to DEFAULT_PARAMS.
  */
-export async function getActiveParams(): Promise<ProbabilityParams> {
+export async function getActiveParams(workspaceId: string): Promise<ProbabilityParams> {
   const [latest] = await db
     .select()
     .from(backtestRuns)
-    .where(sql`${backtestRuns.name} = 'refinement' AND ${backtestRuns.status} = 'completed'`)
+    .where(sql`${backtestRuns.workspaceId} = ${workspaceId} AND ${backtestRuns.name} = 'refinement' AND ${backtestRuns.status} = 'completed'`)
     .orderBy(desc(backtestRuns.completedAt))
     .limit(1);
 
@@ -37,14 +37,14 @@ export async function getActiveParams(): Promise<ProbabilityParams> {
  * Run a parameter sweep and apply the best params if they beat the current ones
  * by more than the improvement threshold.
  */
-export async function refineParams(): Promise<{
+export async function refineParams(workspaceId: string): Promise<{
   improved: boolean;
   currentBrier: number | null;
   bestBrier: number | null;
   bestParams: ProbabilityParams | null;
   message: string;
 }> {
-  const sweepResults = await runSweep();
+  const sweepResults = await runSweep(workspaceId);
 
   if (sweepResults.length === 0) {
     return {
@@ -57,7 +57,7 @@ export async function refineParams(): Promise<{
   }
 
   const best = sweepResults[0];
-  const currentParams = await getActiveParams();
+  const currentParams = await getActiveParams(workspaceId);
 
   // Find current params' score in the sweep (or re-run with current)
   const currentResult = sweepResults.find(
@@ -77,6 +77,7 @@ export async function refineParams(): Promise<{
   if (improvement > IMPROVEMENT_THRESHOLD) {
     // Persist winning params
     await db.insert(backtestRuns).values({
+      workspaceId,
       name: "refinement",
       startDate: new Date(),
       endDate: new Date(),

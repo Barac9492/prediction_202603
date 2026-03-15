@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveThesisAction } from "@/lib/actions/resolve";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    const workspaceId = await getWorkspaceId();
     const { id, wasCorrect, resolutionSource } = await req.json();
     if (typeof id !== "number" || typeof wasCorrect !== "boolean") {
       return NextResponse.json(
@@ -12,7 +14,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    await resolveThesisAction(id, wasCorrect, resolutionSource);
+    await resolveThesisAction(workspaceId, id, wasCorrect, resolutionSource);
     return NextResponse.json({ success: true, id, status: wasCorrect ? "resolved_correct" : "resolved_incorrect" });
   } catch (err) {
     console.error("Failed to resolve thesis:", err);

@@ -3,15 +3,15 @@ import { theses, connections, newsEvents } from "./schema";
 import { sql, desc, eq, and } from "drizzle-orm";
 import { getCalibrationStats } from "./queries";
 
-export async function getResolvedTheses() {
+export async function getResolvedTheses(workspaceId: string) {
   return db
     .select()
     .from(theses)
-    .where(sql`${theses.status} LIKE 'resolved_%'`)
+    .where(and(eq(theses.workspaceId, workspaceId), sql`${theses.status} LIKE 'resolved_%'`))
     .orderBy(desc(theses.resolvedAt));
 }
 
-export async function getOverallBrierScore() {
+export async function getOverallBrierScore(workspaceId: string) {
   const resolved = await db
     .select({
       domain: theses.domain,
@@ -20,6 +20,7 @@ export async function getOverallBrierScore() {
     .from(theses)
     .where(
       and(
+        eq(theses.workspaceId, workspaceId),
         sql`${theses.status} LIKE 'resolved_%'`,
         sql`${theses.brierScore} IS NOT NULL`
       )
@@ -50,7 +51,7 @@ export async function getOverallBrierScore() {
   return { overall, byDomain, count: resolved.length };
 }
 
-export async function getProbabilityCalibration() {
+export async function getProbabilityCalibration(workspaceId: string) {
   const resolved = await db
     .select({
       finalProbability: theses.finalProbability,
@@ -59,6 +60,7 @@ export async function getProbabilityCalibration() {
     .from(theses)
     .where(
       and(
+        eq(theses.workspaceId, workspaceId),
         sql`${theses.status} LIKE 'resolved_%'`,
         sql`${theses.finalProbability} IS NOT NULL`
       )
@@ -89,7 +91,7 @@ export async function getProbabilityCalibration() {
   }));
 }
 
-export async function getSignalQuality() {
+export async function getSignalQuality(workspaceId: string) {
   // For resolved theses, join connections → newsEvents.source
   // Group by source, compute avg adjustedWeight for correct vs incorrect
   const rows = await db
@@ -102,7 +104,7 @@ export async function getSignalQuality() {
     .from(connections)
     .innerJoin(theses, and(eq(connections.toType, sql`'thesis'`), eq(connections.toId, theses.id)))
     .innerJoin(newsEvents, eq(connections.sourceNewsId, newsEvents.id))
-    .where(sql`${theses.status} LIKE 'resolved_%'`);
+    .where(and(eq(connections.workspaceId, workspaceId), sql`${theses.status} LIKE 'resolved_%'`));
 
   const sourceMap: Record<
     string,
@@ -137,11 +139,11 @@ export async function getSignalQuality() {
     .sort((a, b) => b.connectionCount - a.connectionCount);
 }
 
-export async function getTrackRecordSummary() {
+export async function getTrackRecordSummary(workspaceId: string) {
   const [calibration, brier, resolved] = await Promise.all([
-    getCalibrationStats(),
-    getOverallBrierScore(),
-    getResolvedTheses(),
+    getCalibrationStats(workspaceId),
+    getOverallBrierScore(workspaceId),
+    getResolvedTheses(workspaceId),
   ]);
 
   const correctTheses = resolved.filter((t) => t.status === "resolved_correct");

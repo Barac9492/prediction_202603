@@ -6,7 +6,7 @@ import { sql } from "drizzle-orm";
  * Sources with >= 3 resolved connections get scored; others default to 1.0.
  * Score = 0.5 + correctRate → range [0.5, 1.5]
  */
-export async function computeSourceCredibility(): Promise<Map<string, number>> {
+export async function computeSourceCredibility(workspaceId: string): Promise<Map<string, number>> {
   const result = await db.execute(sql`
     SELECT
       ne.source,
@@ -17,6 +17,7 @@ export async function computeSourceCredibility(): Promise<Map<string, number>> {
     JOIN theses t ON t.id = c.to_id AND c.to_type = 'thesis'
     WHERE ne.source IS NOT NULL
       AND t.status LIKE 'resolved_%'
+      AND c.workspace_id = ${workspaceId}
     GROUP BY ne.source
   `);
 

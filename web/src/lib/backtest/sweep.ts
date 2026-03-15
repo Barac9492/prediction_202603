@@ -44,7 +44,7 @@ export interface SweepResult {
  * Pre-loads all data once and computes everything in-memory.
  * Returns results sorted by Brier score (best first).
  */
-export async function runSweep(config: SweepConfig = {}): Promise<SweepResult[]> {
+export async function runSweep(workspaceId: string, config: SweepConfig = {}): Promise<SweepResult[]> {
   const {
     decayRates = DEFAULT_SWEEP.decayRates,
     modelWeights = DEFAULT_SWEEP.modelWeights,
@@ -60,13 +60,13 @@ export async function runSweep(config: SweepConfig = {}): Promise<SweepResult[]>
   const resolvedTheses = await db
     .select()
     .from(theses)
-    .where(sql`${theses.status} LIKE 'resolved_%'`);
+    .where(sql`${theses.workspaceId} = ${workspaceId} AND ${theses.status} LIKE 'resolved_%'`);
 
   if (resolvedTheses.length === 0) {
     return [];
   }
 
-  const allConnections = await db.select().from(connections);
+  const allConnections = await db.select().from(connections).where(sql`${connections.workspaceId} = ${workspaceId}`);
 
   // Pre-compute time ranges for each thesis
   const allThesisRanges = resolvedTheses
@@ -92,6 +92,7 @@ export async function runSweep(config: SweepConfig = {}): Promise<SweepResult[]>
       let finalProbability = 0.5;
       for (let t = startTime; t <= endTime; t += intervalMs) {
         const computed = await computeThesisProbabilityAtTime(
+          workspaceId,
           thesis.id,
           new Date(t),
           params,

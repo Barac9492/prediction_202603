@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getThesisInteractions, getMarketSignals } from "@/lib/db/graph-queries";
 import { computeThesisProbability } from "@/lib/db/probability";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,7 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const workspaceId = await getWorkspaceId();
   const { id } = await params;
   const thesisId = parseInt(id, 10);
   if (isNaN(thesisId)) {
@@ -15,9 +17,9 @@ export async function GET(
   }
 
   const [interactions, marketSignals, prob] = await Promise.all([
-    getThesisInteractions(thesisId),
-    getMarketSignals(thesisId),
-    computeThesisProbability(thesisId),
+    getThesisInteractions(workspaceId, thesisId),
+    getMarketSignals(workspaceId, thesisId),
+    computeThesisProbability(workspaceId, thesisId),
   ]);
 
   // Compute market consensus as average confidence of market connections

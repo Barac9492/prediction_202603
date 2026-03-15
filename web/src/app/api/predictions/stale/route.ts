@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { predictions } from "@/lib/db/schema";
-import { sql, desc } from "drizzle-orm";
+import { sql, desc, eq, and } from "drizzle-orm";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
  * Returns unresolved predictions older than N days (default 7).
  */
 export async function GET(req: NextRequest) {
+  const workspaceId = await getWorkspaceId();
   const days = Number(req.nextUrl.searchParams.get("days") ?? 7);
 
   const stale = await db
@@ -23,7 +25,10 @@ export async function GET(req: NextRequest) {
     })
     .from(predictions)
     .where(
-      sql`${predictions.actualOutcome} IS NULL AND ${predictions.createdAt} < NOW() - INTERVAL '${sql.raw(String(days))} days'`
+      and(
+        eq(predictions.workspaceId, workspaceId),
+        sql`${predictions.actualOutcome} IS NULL AND ${predictions.createdAt} < NOW() - INTERVAL '${sql.raw(String(days))} days'`
+      )
     )
     .orderBy(desc(predictions.createdAt))
     .limit(50);

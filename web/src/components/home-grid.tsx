@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Sparkline } from "@/components/sparkline";
 
 type Thesis = {
   thesisId: number;
@@ -145,7 +146,7 @@ function StatusBar({
 
       {/* Active Clusters */}
       <div className="rounded-xl border border-pm-border px-4 py-3">
-        <div className="text-xs font-medium text-pm-text-meta">Active Clusters</div>
+        <div className="text-xs font-medium text-pm-text-meta" title="Groups of related signals that form a pattern">Signal Patterns</div>
         <div className="mt-1 flex items-center gap-2">
           <span className="text-2xl font-bold text-pm-text-primary">
             {clusters.length}
@@ -164,7 +165,7 @@ function StatusBar({
 
       {/* Net Momentum */}
       <div className="rounded-xl border border-pm-border px-4 py-3">
-        <div className="text-xs font-medium text-pm-text-meta">Net Momentum</div>
+        <div className="text-xs font-medium text-pm-text-meta" title="Average directional trend across all theses">Market Trend</div>
         <div className="mt-1 flex items-baseline gap-1">
           <span
             className={`text-2xl font-bold ${
@@ -216,7 +217,7 @@ function IntelligenceBriefing({
   return (
     <section className="mb-6 rounded-[15px] border border-pm-border p-5">
       <h2 className="mb-4 text-sm font-bold text-pm-text-primary">
-        Intelligence Briefing
+        Latest Signals
       </h2>
 
       {/* 2a: Signal Clusters as visual cards */}
@@ -321,9 +322,11 @@ function IntelligenceBriefing({
 function ThesisCard({
   thesis,
   maxSignalCount,
+  sparkline,
 }: {
   thesis: Thesis;
   maxSignalCount: number;
+  sparkline?: Array<{ probability: number; computedAt: Date }>;
 }) {
   const pct = Math.round(thesis.probability * 100);
   const gaugeColor =
@@ -390,6 +393,13 @@ function ThesisCard({
             </div>
           </div>
         </div>
+
+        {/* Sparkline */}
+        {sparkline && sparkline.length >= 2 && (
+          <div className="mt-2 flex justify-center">
+            <Sparkline data={sparkline} direction={thesis.direction} />
+          </div>
+        )}
 
         <div className="mt-3 flex items-center justify-between text-xs text-pm-text-meta">
           <div className="flex items-center gap-2">
@@ -495,7 +505,7 @@ function GapsSection({ uncovered }: { uncovered: UncoveredEntity[] }) {
       </div>
       {overflow > 0 && (
         <Link
-          href="/dashboard"
+          href="/graph"
           className="mt-3 inline-block text-xs text-pm-blue hover:underline"
         >
           +{overflow} more
@@ -512,6 +522,7 @@ export function HomeGrid({
   recentNews,
   activeClusters,
   uncoveredEntities,
+  sparklineData,
 }: {
   theses: Thesis[];
   trending: Thesis[];
@@ -519,8 +530,55 @@ export function HomeGrid({
   recentNews: NewsEvent[];
   activeClusters: SignalCluster[];
   uncoveredEntities: UncoveredEntity[];
+  sparklineData?: Record<number, Array<{ probability: number; computedAt: Date }>>;
 }) {
   const [activeDomain, setActiveDomain] = useState<string | null>(null);
+
+  // Onboarding empty state when no theses exist
+  if (theses.length === 0) {
+    const steps = [
+      {
+        title: "Create your first thesis",
+        description: "Define an investment hypothesis to start tracking signals.",
+        href: "/thesis",
+      },
+      {
+        title: "Fetch news signals",
+        description: "Import news and data to build your knowledge graph.",
+        href: "/ops",
+      },
+      {
+        title: "Generate recommendations",
+        description: "Get actionable picks based on your theses and signals.",
+        href: "/recommendations",
+      },
+    ];
+    return (
+      <div className="rounded-[15px] border border-pm-border p-8">
+        <h2 className="text-lg font-bold text-pm-text-primary">Getting Started</h2>
+        <p className="mt-2 text-sm text-pm-muted">
+          Set up your signal tracker in three steps.
+        </p>
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          {steps.map((step, i) => (
+            <Link
+              key={step.href}
+              href={step.href}
+              className="group rounded-xl border border-pm-border p-5 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-pm-blue text-sm font-bold text-white">
+                {i + 1}
+              </span>
+              <h3 className="mt-3 text-sm font-semibold text-pm-text-primary group-hover:text-pm-blue">
+                {step.title}
+              </h3>
+              <p className="mt-1 text-xs text-pm-muted">{step.description}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const filtered = activeDomain
     ? theses.filter((t) => t.domain === activeDomain)
@@ -573,9 +631,18 @@ export function HomeGrid({
         {/* Card grid */}
         <div className="flex-1">
           {filtered.length === 0 ? (
-            <p className="py-12 text-center text-pm-text-secondary">
-              No active theses{activeDomain ? ` in ${activeDomain}` : ""}.
-            </p>
+            <div className="py-12 text-center">
+              <p className="text-pm-text-primary font-medium">
+                No active theses{activeDomain ? ` in ${activeDomain}` : ""}
+              </p>
+              <p className="mt-2 text-sm text-pm-muted">
+                Theses are your investment hypotheses.{" "}
+                <Link href="/thesis" className="text-pm-blue hover:underline">
+                  Create your first thesis
+                </Link>{" "}
+                to start tracking signals and generating recommendations.
+              </p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((t) => (
@@ -583,6 +650,7 @@ export function HomeGrid({
                   key={t.thesisId}
                   thesis={t}
                   maxSignalCount={maxSignalCount}
+                  sparkline={sparklineData?.[t.thesisId]}
                 />
               ))}
             </div>

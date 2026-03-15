@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { listRecommendations, insertPriceSnapshot } from "@/lib/db/graph-queries";
 import { fetchPrice } from "@/lib/markets/yahoo";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export async function POST() {
   try {
-    const activeRecs = await listRecommendations({ status: "active" });
+    const workspaceId = await getWorkspaceId();
+    const activeRecs = await listRecommendations(workspaceId, { status: "active" });
     const tickers = [
       ...new Set(
         activeRecs
@@ -21,7 +23,7 @@ export async function POST() {
     for (const ticker of tickers) {
       const priceData = await fetchPrice(ticker);
       if (priceData) {
-        const snap = await insertPriceSnapshot({
+        const snap = await insertPriceSnapshot(workspaceId, {
           ticker,
           price: priceData.price,
           volume: priceData.volume ?? undefined,

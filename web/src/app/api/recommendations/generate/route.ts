@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateRecommendations } from "@/lib/recommendations/generator";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -10,7 +11,8 @@ export const maxDuration = 120;
  */
 export async function POST() {
   try {
-    const result = await generateRecommendations();
+    const workspaceId = await getWorkspaceId();
+    const result = await generateRecommendations(workspaceId);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Recommendation generation failed:", error);

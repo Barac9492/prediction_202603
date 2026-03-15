@@ -3,11 +3,13 @@ import { db } from "@/lib/db";
 import { theses, connections, thesisProbabilitySnapshots } from "@/lib/db/schema";
 import { eq, and, desc, lte } from "drizzle-orm";
 import { computeThesisProbabilityAtTime, DEFAULT_PARAMS } from "@/lib/db/probability";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
+  const workspaceId = await getWorkspaceId();
   const url = new URL(req.url);
   const thesisIdParam = url.searchParams.get("thesisId");
   const intervalHours = parseInt(url.searchParams.get("interval") || "24", 10);
@@ -19,9 +21,9 @@ export async function POST(req: NextRequest) {
     targetTheses = await db
       .select()
       .from(theses)
-      .where(eq(theses.id, parseInt(thesisIdParam, 10)));
+      .where(and(eq(theses.workspaceId, workspaceId), eq(theses.id, parseInt(thesisIdParam, 10))));
   } else {
-    targetTheses = await db.select().from(theses);
+    targetTheses = await db.select().from(theses).where(eq(theses.workspaceId, workspaceId));
   }
 
   if (targetTheses.length === 0) {
@@ -41,13 +43,13 @@ export async function POST(req: NextRequest) {
     const allConns = await db
       .select()
       .from(connections)
-      .where(and(eq(connections.toType, "thesis"), eq(connections.toId, thesis.id)));
+      .where(and(eq(connections.workspaceId, workspaceId), eq(connections.toType, "thesis"), eq(connections.toId, thesis.id)));
 
     // Get existing snapshots to skip
     const existingSnapshots = await db
       .select({ computedAt: thesisProbabilitySnapshots.computedAt })
       .from(thesisProbabilitySnapshots)
-      .where(eq(thesisProbabilitySnapshots.thesisId, thesis.id));
+      .where(and(eq(thesisProbabilitySnapshots.workspaceId, workspaceId), eq(thesisProbabilitySnapshots.thesisId, thesis.id)));
 
     const existingTimes = new Set(
       existingSnapshots.map((s) => new Date(s.computedAt).getTime())
@@ -77,6 +79,7 @@ export async function POST(req: NextRequest) {
       const asOfDate = new Date(t);
 
       const computed = await computeThesisProbabilityAtTime(
+        workspaceId,
         thesis.id,
         asOfDate,
         DEFAULT_PARAMS,
@@ -95,6 +98,7 @@ export async function POST(req: NextRequest) {
 
       if (!dryRun) {
         await db.insert(thesisProbabilitySnapshots).values({
+          workspaceId,
           thesisId: thesis.id,
           probability: computed.probability,
           bullishWeight: computed.bullishWeight,

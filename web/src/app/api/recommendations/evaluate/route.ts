@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { evaluateExpiredRecs } from "@/lib/recommendations/evaluator";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -10,7 +11,8 @@ export const maxDuration = 120;
  */
 export async function POST() {
   try {
-    const result = await evaluateExpiredRecs();
+    const workspaceId = await getWorkspaceId();
+    const result = await evaluateExpiredRecs(workspaceId);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Recommendation evaluation failed:", error);

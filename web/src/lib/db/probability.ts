@@ -34,6 +34,7 @@ export interface ProbabilityResult {
  * If `skipCrossThesis` is true, skips cross-thesis influence lookup.
  */
 export async function computeThesisProbabilityAtTime(
+  workspaceId: string,
   thesisId: number,
   asOfDate: Date,
   params: ProbabilityParams = DEFAULT_PARAMS,
@@ -56,6 +57,7 @@ export async function computeThesisProbabilityAtTime(
       .select()
       .from(connections)
       .where(and(
+        eq(connections.workspaceId, workspaceId),
         eq(connections.toType, "thesis"),
         eq(connections.toId, thesisId),
         lte(connections.createdAt, asOfDate),
@@ -98,7 +100,7 @@ export async function computeThesisProbabilityAtTime(
 
   // Cross-thesis influence
   if (!options?.skipCrossThesis) {
-    const interactions = await getThesisInteractions(thesisId);
+    const interactions = await getThesisInteractions(workspaceId, thesisId);
     if (interactions.length > 0) {
       let crossAdjustment = 0;
       for (const inter of interactions) {
@@ -130,7 +132,7 @@ export async function computeThesisProbabilityAtTime(
 
   // Market signal blending
   if (!options?.skipMarketBlend) {
-    const marketSignals = await getMarketSignals(thesisId);
+    const marketSignals = await getMarketSignals(workspaceId, thesisId);
     if (marketSignals.length > 0) {
       const marketAvg =
         marketSignals.reduce((sum, ms) => sum + ms.confidence, 0) / marketSignals.length;
@@ -150,14 +152,14 @@ export async function computeThesisProbabilityAtTime(
 }
 
 /** Convenience wrapper: compute probability at current time with active params */
-export async function computeThesisProbability(thesisId: number): Promise<ProbabilityResult> {
+export async function computeThesisProbability(workspaceId: string, thesisId: number): Promise<ProbabilityResult> {
   // Lazy import to avoid circular dependency
   const { getActiveParams } = await import("@/lib/backtest/refiner");
-  const params = await getActiveParams();
-  return computeThesisProbabilityAtTime(thesisId, new Date(), params);
+  const params = await getActiveParams(workspaceId);
+  return computeThesisProbabilityAtTime(workspaceId, thesisId, new Date(), params);
 }
 
-export async function snapshotAllProbabilities(): Promise<Array<{
+export async function snapshotAllProbabilities(workspaceId: string): Promise<Array<{
   thesisId: number;
   title: string;
   probability: number;
@@ -166,17 +168,20 @@ export async function snapshotAllProbabilities(): Promise<Array<{
   const activeTheses = await db
     .select()
     .from(theses)
-    .where(eq(theses.isActive, true));
+    .where(and(eq(theses.isActive, true), eq(theses.workspaceId, workspaceId)));
 
   const results = [];
 
   for (const thesis of activeTheses) {
-    const computed = await computeThesisProbability(thesis.id);
+    const computed = await computeThesisProbability(workspaceId, thesis.id);
 
     const [prevSnapshot] = await db
       .select()
       .from(thesisProbabilitySnapshots)
-      .where(eq(thesisProbabilitySnapshots.thesisId, thesis.id))
+      .where(and(
+        eq(thesisProbabilitySnapshots.thesisId, thesis.id),
+        eq(thesisProbabilitySnapshots.workspaceId, workspaceId),
+      ))
       .orderBy(desc(thesisProbabilitySnapshots.computedAt))
       .limit(1);
 
@@ -186,6 +191,7 @@ export async function snapshotAllProbabilities(): Promise<Array<{
 
     await db.insert(thesisProbabilitySnapshots).values({
       thesisId: thesis.id,
+      workspaceId,
       probability: computed.probability,
       bullishWeight: computed.bullishWeight,
       bearishWeight: computed.bearishWeight,
@@ -207,6 +213,7 @@ export async function snapshotAllProbabilities(): Promise<Array<{
 }
 
 export async function getProbabilityHistory(
+  workspaceId: string,
   thesisId: number,
   limit = 90
 ): Promise<Array<{
@@ -221,14 +228,17 @@ export async function getProbabilityHistory(
   const rows = await db
     .select()
     .from(thesisProbabilitySnapshots)
-    .where(eq(thesisProbabilitySnapshots.thesisId, thesisId))
+    .where(and(
+      eq(thesisProbabilitySnapshots.thesisId, thesisId),
+      eq(thesisProbabilitySnapshots.workspaceId, workspaceId),
+    ))
     .orderBy(desc(thesisProbabilitySnapshots.computedAt))
     .limit(limit);
 
   return rows.reverse();
 }
 
-export async function getCurrentProbabilities(): Promise<Array<{
+export async function getCurrentProbabilities(workspaceId: string): Promise<Array<{
   thesisId: number;
   title: string;
   direction: string;
@@ -242,7 +252,7 @@ export async function getCurrentProbabilities(): Promise<Array<{
   const activeTheses = await db
     .select()
     .from(theses)
-    .where(eq(theses.isActive, true))
+    .where(and(eq(theses.isActive, true), eq(theses.workspaceId, workspaceId)))
     .orderBy(desc(theses.createdAt));
 
   const out = [];
@@ -250,7 +260,10 @@ export async function getCurrentProbabilities(): Promise<Array<{
     const [latest] = await db
       .select()
       .from(thesisProbabilitySnapshots)
-      .where(eq(thesisProbabilitySnapshots.thesisId, t.id))
+      .where(and(
+        eq(thesisProbabilitySnapshots.thesisId, t.id),
+        eq(thesisProbabilitySnapshots.workspaceId, workspaceId),
+      ))
       .orderBy(desc(thesisProbabilitySnapshots.computedAt))
       .limit(1);
 
@@ -267,4 +280,48 @@ export async function getCurrentProbabilities(): Promise<Array<{
     });
   }
   return out;
+}
+
+export async function getBatchProbabilityHistory(
+  workspaceId: string,
+  thesisIds: number[],
+  limit = 30
+): Promise<Record<number, Array<{ probability: number; computedAt: Date }>>> {
+  if (thesisIds.length === 0) return {};
+
+  const rows = await db
+    .select({
+      thesisId: thesisProbabilitySnapshots.thesisId,
+      probability: thesisProbabilitySnapshots.probability,
+      computedAt: thesisProbabilitySnapshots.computedAt,
+    })
+    .from(thesisProbabilitySnapshots)
+    .where(
+      and(
+        eq(thesisProbabilitySnapshots.workspaceId, workspaceId),
+        sql`${thesisProbabilitySnapshots.thesisId} IN (${sql.join(
+          thesisIds.map((id) => sql`${id}`),
+          sql`, `
+        )})`,
+      )
+    )
+    .orderBy(desc(thesisProbabilitySnapshots.computedAt));
+
+  // Group by thesisId, take latest `limit` per thesis, reverse to chronological
+  const grouped: Record<number, Array<{ probability: number; computedAt: Date }>> = {};
+  const counts: Record<number, number> = {};
+  for (const row of rows) {
+    counts[row.thesisId] = (counts[row.thesisId] ?? 0) + 1;
+    if (counts[row.thesisId] > limit) continue;
+    if (!grouped[row.thesisId]) grouped[row.thesisId] = [];
+    grouped[row.thesisId].push({
+      probability: row.probability,
+      computedAt: row.computedAt,
+    });
+  }
+  // Reverse each array to chronological order
+  for (const id of Object.keys(grouped)) {
+    grouped[Number(id)].reverse();
+  }
+  return grouped;
 }

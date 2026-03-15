@@ -5,27 +5,30 @@ import {
     getThesis,
     updateThesis,
 } from "@/lib/db/graph-queries";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 
 /** GET /api/theses - list all theses */
 export async function GET(req: NextRequest) {
+    const workspaceId = await getWorkspaceId();
     const { searchParams } = new URL(req.url);
     const activeOnly = searchParams.get("active") === "true";
     const id = searchParams.get("id");
 
   if (id) {
-        const thesis = await getThesis(parseInt(id));
+        const thesis = await getThesis(workspaceId, parseInt(id));
         if (!thesis) return NextResponse.json({ error: "Not found" }, { status: 404 });
         return NextResponse.json(thesis);
   }
 
-  const theses = await listTheses(activeOnly);
+  const theses = await listTheses(workspaceId, activeOnly);
     return NextResponse.json(theses);
 }
 
 /** POST /api/theses - create a new thesis */
 export async function POST(req: NextRequest) {
+    const workspaceId = await getWorkspaceId();
     const body = await req.json();
     const { title, description, direction, domain, tags, deadline, resolutionCriteria } = body;
 
@@ -43,7 +46,7 @@ export async function POST(req: NextRequest) {
               );
   }
 
-  const thesis = await createThesis({
+  const thesis = await createThesis(workspaceId, {
     title, description, direction, domain, tags,
     ...(deadline && { deadline: new Date(deadline) }),
     ...(resolutionCriteria && { resolutionCriteria }),
@@ -53,6 +56,7 @@ export async function POST(req: NextRequest) {
 
 /** PATCH /api/theses - update a thesis */
 export async function PATCH(req: NextRequest) {
+    const workspaceId = await getWorkspaceId();
     const body = await req.json();
     const { id, ...updates } = body;
 
@@ -77,7 +81,7 @@ export async function PATCH(req: NextRequest) {
     updates.isActive = false;
   }
 
-  const thesis = await updateThesis(parseInt(id), updates);
+  const thesis = await updateThesis(workspaceId, parseInt(id), updates);
   if (!thesis) {
     return NextResponse.json({ error: "Thesis not found" }, { status: 404 });
   }

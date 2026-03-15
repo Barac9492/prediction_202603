@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { snapshotAllProbabilities } from "@/lib/db/probability";
+import { getAllWorkspaceIds } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -19,102 +20,109 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const steps: Record<string, unknown> = {};
+  const workspaceIds = await getAllWorkspaceIds();
+  const allSteps: Record<string, Record<string, unknown>> = {};
 
-  // Step 0: Ingest Obsidian vault notes
-  try {
-    const { POST: ingestVault } = await import("@/app/api/vault/ingest/route");
-    const vaultRes = await ingestVault();
-    steps.vaultIngest = await vaultRes.json();
-  } catch (err) {
-    steps.vaultIngest = { error: String(err) };
-  }
+  for (const workspaceId of workspaceIds) {
+    const steps: Record<string, unknown> = {};
 
-  // Step 1: Fetch RSS feeds
-  try {
-    const { POST: fetchFeeds } = await import("@/app/api/feed/fetch/route");
-    const feedRes = await fetchFeeds();
-    steps.feedFetch = await feedRes.json();
-  } catch (err) {
-    steps.feedFetch = { error: String(err) };
-  }
-
-  // Step 2: LLM ingest unprocessed events
-  try {
-    const { POST: ingestFeeds } = await import("@/app/api/feed/ingest/route");
-    const ingestReq = new Request("http://localhost/api/feed/ingest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: 20 }),
-    });
-    const ingestRes = await ingestFeeds(ingestReq as NextRequest);
-    steps.feedIngest = await ingestRes.json();
-  } catch (err) {
-    steps.feedIngest = { error: String(err) };
-  }
-
-  // Step 3: Fetch Polymarket data
-  try {
-    const { POST: fetchMarkets } = await import("@/app/api/markets/fetch/route");
-    const marketRes = await fetchMarkets();
-    steps.marketFetch = await marketRes.json();
-  } catch (err) {
-    steps.marketFetch = { error: String(err) };
-  }
-
-  // Step 4: Snapshot all probabilities
-  try {
-    const snapshots = await snapshotAllProbabilities();
-    steps.probabilitySnapshot = {
-      count: snapshots.length,
-      theses: snapshots,
-    };
-  } catch (err) {
-    steps.probabilitySnapshot = { error: String(err) };
-  }
-
-  // Step 5: Signal fusion — detect entity co-occurrence clusters
-  try {
-    const { detectClusters } = await import("@/lib/analysis/signal-fusion");
-    const fusionResult = await detectClusters(7);
-    steps.signalFusion = fusionResult;
-  } catch (err) {
-    steps.signalFusion = { error: String(err) };
-  }
-
-  // Step 6: Evaluate expired recommendations
-  let resolvedCount = 0;
-  try {
-    const { evaluateExpiredRecs } = await import("@/lib/recommendations/evaluator");
-    const evalResult = await evaluateExpiredRecs();
-    steps.recEvaluate = evalResult;
-    resolvedCount = evalResult.evaluated;
-  } catch (err) {
-    steps.recEvaluate = { error: String(err) };
-  }
-
-  // Step 7: Generate new recommendations (if few active)
-  try {
-    const { generateRecommendations } = await import("@/lib/recommendations/generator");
-    const genResult = await generateRecommendations();
-    steps.recGenerate = genResult;
-  } catch (err) {
-    steps.recGenerate = { error: String(err) };
-  }
-
-  // Step 8: Refine backtest params (if any recs were resolved)
-  if (resolvedCount > 0) {
+    // Step 0: Ingest Obsidian vault notes
     try {
-      const { refineParams } = await import("@/lib/backtest/refiner");
-      const refineResult = await refineParams();
-      steps.backtestRefine = refineResult;
+      const { POST: ingestVault } = await import("@/app/api/vault/ingest/route");
+      const vaultRes = await ingestVault();
+      steps.vaultIngest = await vaultRes.json();
     } catch (err) {
-      steps.backtestRefine = { error: String(err) };
+      steps.vaultIngest = { error: String(err) };
     }
+
+    // Step 1: Fetch RSS feeds
+    try {
+      const { POST: fetchFeeds } = await import("@/app/api/feed/fetch/route");
+      const feedRes = await fetchFeeds();
+      steps.feedFetch = await feedRes.json();
+    } catch (err) {
+      steps.feedFetch = { error: String(err) };
+    }
+
+    // Step 2: LLM ingest unprocessed events
+    try {
+      const { POST: ingestFeeds } = await import("@/app/api/feed/ingest/route");
+      const ingestReq = new Request("http://localhost/api/feed/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 20 }),
+      });
+      const ingestRes = await ingestFeeds(ingestReq as NextRequest);
+      steps.feedIngest = await ingestRes.json();
+    } catch (err) {
+      steps.feedIngest = { error: String(err) };
+    }
+
+    // Step 3: Fetch Polymarket data
+    try {
+      const { POST: fetchMarkets } = await import("@/app/api/markets/fetch/route");
+      const marketRes = await fetchMarkets();
+      steps.marketFetch = await marketRes.json();
+    } catch (err) {
+      steps.marketFetch = { error: String(err) };
+    }
+
+    // Step 4: Snapshot all probabilities
+    try {
+      const snapshots = await snapshotAllProbabilities(workspaceId);
+      steps.probabilitySnapshot = {
+        count: snapshots.length,
+        theses: snapshots,
+      };
+    } catch (err) {
+      steps.probabilitySnapshot = { error: String(err) };
+    }
+
+    // Step 5: Signal fusion — detect entity co-occurrence clusters
+    try {
+      const { detectClusters } = await import("@/lib/analysis/signal-fusion");
+      const fusionResult = await detectClusters(workspaceId, 7);
+      steps.signalFusion = fusionResult;
+    } catch (err) {
+      steps.signalFusion = { error: String(err) };
+    }
+
+    // Step 6: Evaluate expired recommendations
+    let resolvedCount = 0;
+    try {
+      const { evaluateExpiredRecs } = await import("@/lib/recommendations/evaluator");
+      const evalResult = await evaluateExpiredRecs(workspaceId);
+      steps.recEvaluate = evalResult;
+      resolvedCount = evalResult.evaluated;
+    } catch (err) {
+      steps.recEvaluate = { error: String(err) };
+    }
+
+    // Step 7: Generate new recommendations (if few active)
+    try {
+      const { generateRecommendations } = await import("@/lib/recommendations/generator");
+      const genResult = await generateRecommendations(workspaceId);
+      steps.recGenerate = genResult;
+    } catch (err) {
+      steps.recGenerate = { error: String(err) };
+    }
+
+    // Step 8: Refine backtest params (if any recs were resolved)
+    if (resolvedCount > 0) {
+      try {
+        const { refineParams } = await import("@/lib/backtest/refiner");
+        const refineResult = await refineParams(workspaceId);
+        steps.backtestRefine = refineResult;
+      } catch (err) {
+        steps.backtestRefine = { error: String(err) };
+      }
+    }
+
+    allSteps[workspaceId] = steps;
   }
 
   return NextResponse.json({
     completedAt: new Date().toISOString(),
-    steps,
+    workspaces: allSteps,
   });
 }

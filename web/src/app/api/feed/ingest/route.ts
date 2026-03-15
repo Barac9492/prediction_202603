@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/graph-queries";
 import { snapshotAllProbabilities } from "@/lib/db/probability";
 import { computeSourceCredibility, getCredibilityForSource } from "@/lib/db/source-credibility";
+import { getWorkspaceId } from "@/lib/db/workspace";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const dynamic = "force-dynamic";
@@ -94,22 +95,23 @@ Respond ONLY with valid JSON:
  * Call this periodically (e.g., via cron or manual trigger).
  */
 export async function POST(req: NextRequest) {
+  const workspaceId = await getWorkspaceId();
   const { limit = 10 } = await req.json().catch(() => ({}));
 
   // 1. Get unprocessed news events
-  const unprocessed = await listNewsEvents({ unprocessedOnly: true, limit });
+  const unprocessed = await listNewsEvents(workspaceId, { unprocessedOnly: true, limit });
   if (unprocessed.length === 0) {
     return NextResponse.json({ processed: 0, message: "No unprocessed events" });
   }
 
   // 2. Get active theses for context
-  const theses = await listTheses(true);
+  const theses = await listTheses(workspaceId, true);
   const thesesText = theses
     .map((t) => `ID ${t.id}: [${t.direction.toUpperCase()}] ${t.title} — ${t.description}`)
     .join("\n");
 
   // Pre-compute source credibility for confidence adjustments
-  const credibilityMap = await computeSourceCredibility();
+  const credibilityMap = await computeSourceCredibility(workspaceId);
 
   const results = [];
 
@@ -147,7 +149,7 @@ export async function POST(req: NextRequest) {
       );
 
       // 4. Mark as processed with extracted metadata
-      await markNewsProcessed(event.id, {
+      await markNewsProcessed(workspaceId, event.id, {
         aiRelevance: parsed.ai_relevance,
         sentiment: parsed.sentiment,
         extractedEntities: entityNames,
@@ -162,12 +164,12 @@ export async function POST(req: NextRequest) {
         const entityData = typeof ent === "string"
           ? { name: ent, type: "unknown", category: undefined }
           : { name: ent.name, type: ent.category || "unknown", category: ent.category };
-        const entity = await upsertEntity(entityData);
+        const entity = await upsertEntity(workspaceId, entityData);
         entityMap.set(entityData.name, entity.id);
 
         // Create news_event → entity MENTIONS connection
         const credibility = getCredibilityForSource(credibilityMap, event.source);
-        await createConnection({
+        await createConnection(workspaceId, {
           fromType: "news_event",
           fromId: event.id,
           toType: "entity",
@@ -184,7 +186,7 @@ export async function POST(req: NextRequest) {
         const fromId = entityMap.get(rel.from);
         const toId = entityMap.get(rel.to);
         if (fromId && toId) {
-          await createConnection({
+          await createConnection(workspaceId, {
             fromType: "entity",
             fromId,
             toType: "entity",
@@ -202,7 +204,7 @@ export async function POST(req: NextRequest) {
         if (tc.relation === "UNRELATED") continue;
         relevantThesisIds.add(tc.thesis_id);
         const credibility = getCredibilityForSource(credibilityMap, event.source);
-        await createConnection({
+        await createConnection(workspaceId, {
           fromType: "news_event",
           fromId: event.id,
           toType: "thesis",
@@ -219,7 +221,7 @@ export async function POST(req: NextRequest) {
       for (const [entityName, entityId] of entityMap) {
         for (const thesisId of relevantThesisIds) {
           const credibility = getCredibilityForSource(credibilityMap, event.source);
-          await createConnection({
+          await createConnection(workspaceId, {
             fromType: "entity",
             fromId: entityId,
             toType: "thesis",
@@ -235,7 +237,7 @@ export async function POST(req: NextRequest) {
       // 9. Create thesis↔thesis interactions
       for (const ti of parsed.thesis_interactions || []) {
         if (!ti.thesis_a_id || !ti.thesis_b_id) continue;
-        await upsertThesisInteraction({
+        await upsertThesisInteraction(workspaceId, {
           thesisAId: ti.thesis_a_id,
           thesisBId: ti.thesis_b_id,
           relation: ti.relation,
@@ -249,7 +251,7 @@ export async function POST(req: NextRequest) {
       for (const obs of parsed.entity_observations || []) {
         const entityId = entityMap.get(obs.entity);
         if (!entityId) continue;
-        await createEntityObservation({
+        await createEntityObservation(workspaceId, {
           entityId,
           attribute: obs.attribute,
           value: obs.value,
@@ -276,7 +278,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error(`Failed to process news event ${event.id}:`, err);
       // Mark as processed anyway to avoid infinite loop
-      await markNewsProcessed(event.id, { aiRelevance: 0 });
+      await markNewsProcessed(workspaceId, event.id, { aiRelevance: 0 });
     }
   }
 
@@ -284,7 +286,7 @@ export async function POST(req: NextRequest) {
   let probabilities: Awaited<ReturnType<typeof snapshotAllProbabilities>> = [];
   if (results.length > 0) {
     try {
-      probabilities = await snapshotAllProbabilities();
+      probabilities = await snapshotAllProbabilities(workspaceId);
     } catch (err) {
       console.error("Failed to compute probabilities:", err);
     }
@@ -295,8 +297,9 @@ export async function POST(req: NextRequest) {
 
 /** GET /api/feed/ingest - Returns unprocessed count */
 export async function GET() {
-  const unprocessed = await listNewsEvents({ unprocessedOnly: true, limit: 1000 });
-  const recent = await listNewsEvents({ limit: 20 });
+  const workspaceId = await getWorkspaceId();
+  const unprocessed = await listNewsEvents(workspaceId, { unprocessedOnly: true, limit: 1000 });
+  const recent = await listNewsEvents(workspaceId, { limit: 20 });
   return NextResponse.json({
     unprocessedCount: unprocessed.length,
     recentEvents: recent,

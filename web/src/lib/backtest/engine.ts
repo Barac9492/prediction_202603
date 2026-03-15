@@ -41,7 +41,7 @@ export interface BacktestResult {
  * Run a backtest: replay probability computation for all resolved theses
  * using the given parameters.
  */
-export async function runBacktest(config: BacktestConfig): Promise<BacktestResult> {
+export async function runBacktest(workspaceId: string, config: BacktestConfig): Promise<BacktestResult> {
   const { params, intervalHours = 24 } = config;
   const intervalMs = intervalHours * 60 * 60 * 1000;
 
@@ -49,14 +49,14 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
   const resolvedTheses = await db
     .select()
     .from(theses)
-    .where(sql`${theses.status} LIKE 'resolved_%'`);
+    .where(sql`${theses.workspaceId} = ${workspaceId} AND ${theses.status} LIKE 'resolved_%'`);
 
   if (resolvedTheses.length === 0) {
     return { thesisResults: [], aggregateBrier: 0, calibrationBuckets: [] };
   }
 
   // Pre-load all connections once
-  const allConnections = await db.select().from(connections);
+  const allConnections = await db.select().from(connections).where(sql`${connections.workspaceId} = ${workspaceId}`);
 
   const thesisResults: ThesisBacktestResult[] = [];
 
@@ -72,6 +72,7 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
     for (let t = startTime; t <= endTime; t += intervalMs) {
       const asOfDate = new Date(t);
       const computed = await computeThesisProbabilityAtTime(
+        workspaceId,
         thesis.id,
         asOfDate,
         params,
@@ -144,22 +145,22 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
 /**
  * Run a backtest and persist the results to the backtestRuns table.
  */
-export async function runAndStoreBacktest(config: BacktestConfig): Promise<{
+export async function runAndStoreBacktest(workspaceId: string, config: BacktestConfig): Promise<{
   runId: number;
   result: BacktestResult;
 }> {
   const name = config.name || `Backtest ${new Date().toISOString()}`;
 
-  const run = await createBacktestRun({
+  const run = await createBacktestRun(workspaceId, {
     name,
     startDate: new Date(),
     endDate: new Date(),
     parameters: config.params as unknown as Record<string, unknown>,
   });
 
-  const result = await runBacktest(config);
+  const result = await runBacktest(workspaceId, config);
 
-  await updateBacktestRun(run.id, {
+  await updateBacktestRun(workspaceId, run.id, {
     results: {
       aggregateBrier: result.aggregateBrier,
       calibrationBuckets: result.calibrationBuckets,

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getGraphData } from "@/lib/db/graph-queries";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export async function GET() {
     try {
-          const data = await getGraphData();
+          const workspaceId = await getWorkspaceId();
+          const data = await getGraphData(workspaceId);
           return NextResponse.json(data);
     } catch (error) {
           console.error("Graph API error:", error);

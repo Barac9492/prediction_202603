@@ -1,46 +1,46 @@
-# SignalTracker Phase 1 — CLI MVP Build Plan
+# SaaS Foundation - Task Tracking
 
-## Goal
-Working CLI: input source → extract signals → ensemble → predict → save to SQLite
+## Phase 1: Schema + Multi-Tenancy
+- [x] 1a. Add workspaceId to all 13 core tables in schema.ts
+- [x] 1b. Add workspace management tables (workspaces, workspaceMembers)
+- [x] 1c. Create workspace.ts helper (getWorkspaceId, getAllWorkspaceIds)
+- [x] 1d. Retrofit graph-queries.ts with workspaceId (49 functions)
+- [x] 1e. Retrofit queries.ts with workspaceId (6 functions)
+- [x] 1f. Retrofit probability.ts with workspaceId (6 functions)
+- [x] 1g. Retrofit scoring.ts with workspaceId (5 functions)
+- [x] 1h. Retrofit performance.ts with workspaceId (10 functions)
+- [x] 1i. Retrofit source-credibility.ts with workspaceId
+- [x] 1j. Update all 30 API routes with workspaceId resolution
+- [x] 1k. Update 7 intermediate lib files (backtest, recommendations, analysis, actions)
+- [x] 1l. Update 10 server component pages
+- [x] 1m. Generate drizzle migration (production-safe with backfill)
 
-## Tasks
+## Phase 2: Clerk Auth
+- [x] 2a. Install @clerk/nextjs
+- [x] 2b. Create middleware.ts with route protection + redirect logic
+- [x] 2c. Wrap layout in ClerkProvider
+- [x] 2d. Create sign-in/sign-up pages
+- [x] 2e. Create Clerk webhook route (org.created, membership.created/deleted)
+- [x] 2f. Route groups: (marketing), (app), (auth)
 
-### 1. Project Setup
-- [ ] Create Python project structure (src/, pyproject.toml)
-- [ ] Set up dependencies (anthropic, beautifulsoup4, newspaper3k, httpx)
-- [ ] Create .env.example for API key
-- [ ] Create .gitignore
+## Phase 3: Paddle Billing
+- [x] 3a. Install @paddle/paddle-node-sdk
+- [x] 3b. Create billing.ts (plan limits, workspace plan management)
+- [x] 3c. Create guards.ts (plan enforcement: thesis, seat limits)
+- [x] 3d. Create Paddle webhook route
+- [x] 3e. Create billing settings page
 
-### 2. Data Collection Module
-- [ ] URL content extraction (newspaper3k + BeautifulSoup fallback)
-- [ ] Plain text input support
-- [ ] Source metadata capture (title, date, URL)
+## Phase 4: Landing Page + Onboarding
+- [x] 4a. Marketing landing page with hero, features, pricing
+- [x] 4b. Onboarding flow (create org → create thesis → run pipeline)
 
-### 3. Signal Extraction Module (Claude API)
-- [ ] Prompt design for signal extraction (bullish/bearish/neutral + strength 1-5)
-- [ ] Structured output parsing (JSON schema)
-- [ ] Per-source signal extraction
+## Verification
+- [x] npx next build passes cleanly
+- [ ] Deploy and test end-to-end flow
+- [ ] Add env vars: CLERK_*, PADDLE_*, CRON_SECRET
 
-### 4. Ensemble & Prediction Engine
-- [ ] Multi-signal aggregation (weighted average)
-- [ ] Contradiction detection between sources
-- [ ] Final prediction output: direction + confidence % + top 3 reasons
-
-### 5. Storage Module (SQLite)
-- [ ] Schema design (predictions, signals, sources tables)
-- [ ] Save prediction with all metadata
-- [ ] Query past predictions
-- [ ] Record actual outcomes for accuracy tracking
-
-### 6. CLI Interface
-- [ ] Main entry point with argparse/click
-- [ ] `analyze` command — input sources → get prediction
-- [ ] `log` command — view past predictions
-- [ ] `resolve` command — record actual outcome
-- [ ] `stats` command — view accuracy/calibration
-
-### 7. Verification
-- [ ] End-to-end test with real URL
-- [ ] Test with multiple sources (contradiction case)
-- [ ] Test prediction log save/retrieve cycle
-- [ ] Test accuracy tracking flow
+## Review
+- Build passes with 0 errors
+- 60+ files modified/created across all phases
+- Production-safe migration with ws_default backfill
+- Paddle chosen over Stripe (merchant of record, handles tax/compliance)

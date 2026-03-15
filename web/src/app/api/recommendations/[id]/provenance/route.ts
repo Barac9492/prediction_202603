@@ -6,18 +6,20 @@ import {
   getNewsEventsByIds,
   getEntitiesForThesis,
 } from "@/lib/db/graph-queries";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const workspaceId = await getWorkspaceId();
   const { id } = await params;
   const recId = parseInt(id, 10);
   if (isNaN(recId)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const rec = await getRecommendation(recId);
+  const rec = await getRecommendation(workspaceId, recId);
   if (!rec) {
     return NextResponse.json(
       { error: "Recommendation not found" },
@@ -32,20 +34,20 @@ export async function GET(
   let relatedEntities: Awaited<ReturnType<typeof getEntitiesForThesis>> = [];
 
   if (rec.thesisId) {
-    thesis = await getThesis(rec.thesisId);
+    thesis = await getThesis(workspaceId, rec.thesisId);
 
     // Get connections to this thesis (signals)
-    thesisConnections = await getThesisConnections(rec.thesisId);
+    thesisConnections = await getThesisConnections(workspaceId, rec.thesisId);
 
     // Get source news articles
     const newsIds = thesisConnections
       .map((c) => c.sourceNewsId)
       .filter((id): id is number => id !== null);
     const uniqueNewsIds = [...new Set(newsIds)];
-    sourceNews = await getNewsEventsByIds(uniqueNewsIds);
+    sourceNews = await getNewsEventsByIds(workspaceId, uniqueNewsIds);
 
     // Get related entities
-    relatedEntities = await getEntitiesForThesis(rec.thesisId);
+    relatedEntities = await getEntitiesForThesis(workspaceId, rec.thesisId);
   }
 
   return NextResponse.json({

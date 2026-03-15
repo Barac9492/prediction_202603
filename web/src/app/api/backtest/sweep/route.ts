@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runSweep, DEFAULT_SWEEP, type SweepConfig } from "@/lib/backtest/sweep";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -7,6 +8,7 @@ export const maxDuration = 300;
 /** POST /api/backtest/sweep - Run parameter sweep */
 export async function POST(req: NextRequest) {
   try {
+    const workspaceId = await getWorkspaceId();
     const body = await req.json().catch(() => ({}));
 
     const config: SweepConfig = {
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
       config.crossThesisCaps!.length *
       config.neutralFactors!.length;
 
-    const results = await runSweep(config);
+    const results = await runSweep(workspaceId, config);
 
     return NextResponse.json({
       totalCombinations,

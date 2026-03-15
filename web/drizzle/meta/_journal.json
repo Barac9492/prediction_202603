@@ -15,6 +15,13 @@
       "when": 1773472717627,
       "tag": "0001_tricky_bill_hollister",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773533803396,
+      "tag": "0002_early_vulture",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import { fromUrl, fromText } from "@/lib/core/collector";
 import { extractSignals } from "@/lib/ai/extractor";
 import { ensemble } from "@/lib/core/ensemble";
 import { savePrediction } from "@/lib/db/queries";
+import { getWorkspaceId } from "@/lib/db/workspace";
 import type { Signal, SourceData, ExtractionResult } from "@/lib/core/types";
 
 export const maxDuration = 120;
@@ -46,7 +47,10 @@ export async function POST(req: NextRequest) {
               );
   }
 
-  /* ---------- 2. Stream analysis progress to the client ---------- */
+  /* ---------- 2. Resolve workspace ---------- */
+  const workspaceId = await getWorkspaceId();
+
+  /* ---------- 3. Stream analysis progress to the client ---------- */
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -136,7 +140,7 @@ export async function POST(req: NextRequest) {
 
                   let predId: number;
                     try {
-                                predId = await savePrediction(topic, prediction, allSignals, sourceResults);
+                                predId = await savePrediction(workspaceId, topic, prediction, allSignals, sourceResults);
                     } catch (dbErr) {
                                 send({
                                               step: "warning",

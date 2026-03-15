@@ -12,6 +12,7 @@ import {
   upsertThesisInteraction,
   markNewsProcessed,
 } from "@/lib/db/graph-queries";
+import { getWorkspaceId } from "@/lib/db/workspace";
 import { eq, and, desc, sql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -56,6 +57,7 @@ Respond ONLY with valid JSON:
 }`;
 
 export async function POST(req: NextRequest) {
+  const workspaceId = await getWorkspaceId();
   const { batchSize = 10 } = await req.json().catch(() => ({}));
 
   // Get processed news events that don't yet have entity connections
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const theses = await listTheses(true);
+  const theses = await listTheses(workspaceId, true);
   const thesesText = theses
     .map((t) => `ID ${t.id}: [${t.direction.toUpperCase()}] ${t.title} — ${t.description}`)
     .join("\n");
@@ -118,10 +120,10 @@ export async function POST(req: NextRequest) {
         const entityData = typeof ent === "string"
           ? { name: ent, type: "unknown" }
           : { name: ent.name, type: ent.category || "unknown", category: ent.category };
-        const entity = await upsertEntity(entityData);
+        const entity = await upsertEntity(workspaceId, entityData);
         entityMap.set(entityData.name, entity.id);
 
-        await createConnection({
+        await createConnection(workspaceId, {
           fromType: "news_event",
           fromId: event.id,
           toType: "entity",
@@ -138,7 +140,7 @@ export async function POST(req: NextRequest) {
         const fromId = entityMap.get(rel.from);
         const toId = entityMap.get(rel.to);
         if (fromId && toId) {
-          await createConnection({
+          await createConnection(workspaceId, {
             fromType: "entity",
             fromId,
             toType: "entity",
@@ -158,7 +160,7 @@ export async function POST(req: NextRequest) {
       }
       for (const [entityName, entityId] of entityMap) {
         for (const thesisId of relevantThesisIds) {
-          await createConnection({
+          await createConnection(workspaceId, {
             fromType: "entity",
             fromId: entityId,
             toType: "thesis",
@@ -175,7 +177,7 @@ export async function POST(req: NextRequest) {
       for (const obs of parsed.entity_observations || []) {
         const entityId = entityMap.get(obs.entity);
         if (!entityId) continue;
-        await createEntityObservation({
+        await createEntityObservation(workspaceId, {
           entityId,
           attribute: obs.attribute,
           value: obs.value,
@@ -189,7 +191,7 @@ export async function POST(req: NextRequest) {
       // Update extractedEntities on the news event if empty
       const entityNames = [...entityMap.keys()];
       if (!event.extractedEntities || (event.extractedEntities as string[]).length === 0) {
-        await markNewsProcessed(event.id, { extractedEntities: entityNames });
+        await markNewsProcessed(workspaceId, event.id, { extractedEntities: entityNames });
       }
 
       results.push({

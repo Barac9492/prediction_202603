@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { matchThesesToMarkets } from "@/lib/markets/fetcher";
 import { listTheses, createConnection, insertNewsEvent } from "@/lib/db/graph-queries";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST() {
   try {
-    const activeTheses = await listTheses(true);
+    const workspaceId = await getWorkspaceId();
+    const activeTheses = await listTheses(workspaceId, true);
     if (activeTheses.length === 0) {
       return NextResponse.json({ matched: 0, message: "No active theses" });
     }
@@ -24,7 +26,7 @@ export async function POST() {
     for (const [thesisId, markets] of matches) {
       for (const market of markets) {
         // Store market data as a news event with source="polymarket"
-        const newsEvent = await insertNewsEvent({
+        const newsEvent = await insertNewsEvent(workspaceId, {
           title: market.title,
           url: market.url,
           source: "polymarket",
@@ -33,7 +35,7 @@ export async function POST() {
 
         // Create connection from market to thesis
         const newsId = newsEvent?.id;
-        await createConnection({
+        await createConnection(workspaceId, {
           fromType: "market",
           fromId: newsId ?? 0,
           toType: "thesis",

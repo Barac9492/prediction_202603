@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { listNewsEvents, createThesis, listTheses } from "@/lib/db/graph-queries";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -51,8 +52,9 @@ Respond ONLY with valid JSON array:
  * stores them as status="pending_review" for user approval.
  */
 export async function POST() {
+  const workspaceId = await getWorkspaceId();
   // 1. Get recent processed news (last 50 items)
-  const recentNews = await listNewsEvents({ limit: 50 });
+  const recentNews = await listNewsEvents(workspaceId, { limit: 50 });
   const processedNews = recentNews.filter((n) => n.processed && n.aiRelevance && n.aiRelevance >= 3);
 
   if (processedNews.length < 3) {
@@ -63,7 +65,7 @@ export async function POST() {
   }
 
   // 2. Get existing active theses to avoid duplicates
-  const existing = await listTheses(true);
+  const existing = await listTheses(workspaceId, true);
 
   // 3. Build prompts
   const newsText = processedNews
@@ -108,7 +110,7 @@ export async function POST() {
   // 5. Store each as pending_review
   const created = [];
   for (const s of suggestions) {
-    const thesis = await createThesis({
+    const thesis = await createThesis(workspaceId, {
       title: s.title,
       description: s.description,
       direction: s.direction,

@@ -1,9 +1,10 @@
 import { db } from "./index";
 import { predictions, signals, sources } from "./schema";
-import { eq, desc, isNotNull, sql } from "drizzle-orm";
+import { and, eq, desc, isNotNull, sql } from "drizzle-orm";
 import type { Prediction, Signal, SourceData, ExtractionResult } from "../core/types";
 
 export async function savePrediction(
+  workspaceId: string,
   topic: string,
   prediction: Prediction,
   allSignals: Signal[],
@@ -12,6 +13,7 @@ export async function savePrediction(
   const [pred] = await db
     .insert(predictions)
     .values({
+      workspaceId,
       topic,
       direction: prediction.direction,
       confidence: prediction.confidence,
@@ -30,6 +32,7 @@ export async function savePrediction(
   if (allSignals.length) {
     await db.insert(signals).values(
       allSignals.map((s) => ({
+        workspaceId,
         predictionId: predId,
         description: s.description,
         direction: s.direction,
@@ -43,6 +46,7 @@ export async function savePrediction(
   if (sourceResults.length) {
     await db.insert(sources).values(
       sourceResults.map(({ source, result }) => ({
+        workspaceId,
         predictionId: predId,
         title: source.title,
         url: source.url || null,
@@ -57,6 +61,7 @@ export async function savePrediction(
 }
 
 export async function resolvePrediction(
+  workspaceId: string,
   predictionId: number,
   actualOutcome: string,
   notes = ""
@@ -68,45 +73,48 @@ export async function resolvePrediction(
       outcomeNotes: notes,
       resolvedAt: new Date(),
     })
-    .where(eq(predictions.id, predictionId));
+    .where(and(eq(predictions.id, predictionId), eq(predictions.workspaceId, workspaceId)));
 }
 
 export async function listPredictions(
+  workspaceId: string,
   filter: "all" | "pending" | "resolved" = "all",
   limit = 50
 ) {
   let query = db.select().from(predictions);
 
   if (filter === "resolved") {
-    query = query.where(isNotNull(predictions.actualOutcome)) as typeof query;
+    query = query.where(and(eq(predictions.workspaceId, workspaceId), isNotNull(predictions.actualOutcome))) as typeof query;
   } else if (filter === "pending") {
-    query = query.where(sql`${predictions.actualOutcome} IS NULL`) as typeof query;
+    query = query.where(and(eq(predictions.workspaceId, workspaceId), sql`${predictions.actualOutcome} IS NULL`)) as typeof query;
+  } else {
+    query = query.where(eq(predictions.workspaceId, workspaceId)) as typeof query;
   }
 
   return query.orderBy(desc(predictions.createdAt)).limit(limit);
 }
 
-export async function getPredictionDetail(predictionId: number) {
+export async function getPredictionDetail(workspaceId: string, predictionId: number) {
   const [pred] = await db
     .select()
     .from(predictions)
-    .where(eq(predictions.id, predictionId));
+    .where(and(eq(predictions.id, predictionId), eq(predictions.workspaceId, workspaceId)));
   if (!pred) return null;
 
   const sigs = await db
     .select()
     .from(signals)
-    .where(eq(signals.predictionId, predictionId));
+    .where(and(eq(signals.predictionId, predictionId), eq(signals.workspaceId, workspaceId)));
 
   const srcs = await db
     .select()
     .from(sources)
-    .where(eq(sources.predictionId, predictionId));
+    .where(and(eq(sources.predictionId, predictionId), eq(sources.workspaceId, workspaceId)));
 
   return { prediction: pred, signals: sigs, sources: srcs };
 }
 
-export async function listStalePredictions(olderThanDays = 7, limit = 10) {
+export async function listStalePredictions(workspaceId: string, olderThanDays = 7, limit = 10) {
   return db
     .select({
       id: predictions.id,
@@ -117,13 +125,16 @@ export async function listStalePredictions(olderThanDays = 7, limit = 10) {
     })
     .from(predictions)
     .where(
-      sql`${predictions.actualOutcome} IS NULL AND ${predictions.createdAt} < NOW() - INTERVAL '1 day' * ${olderThanDays}`
+      and(
+        eq(predictions.workspaceId, workspaceId),
+        sql`${predictions.actualOutcome} IS NULL AND ${predictions.createdAt} < NOW() - INTERVAL '1 day' * ${olderThanDays}`
+      )
     )
     .orderBy(desc(predictions.createdAt))
     .limit(limit);
 }
 
-export async function getCalibrationStats() {
+export async function getCalibrationStats(workspaceId: string) {
   const resolved = await db
     .select({
       direction: predictions.direction,
@@ -131,7 +142,7 @@ export async function getCalibrationStats() {
       actualOutcome: predictions.actualOutcome,
     })
     .from(predictions)
-    .where(isNotNull(predictions.actualOutcome));
+    .where(and(eq(predictions.workspaceId, workspaceId), isNotNull(predictions.actualOutcome)));
 
   if (!resolved.length) {
     return { total: 0, correct: 0, accuracy: 0, byConfidence: {} };

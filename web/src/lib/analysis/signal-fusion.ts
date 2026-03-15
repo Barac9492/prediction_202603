@@ -25,7 +25,7 @@ interface CoOccurrence {
  * 4. For clusters of 3+ signals, call Claude for labeling
  * 5. Upsert into signal_clusters
  */
-export async function detectClusters(windowDays = 7) {
+export async function detectClusters(workspaceId: string, windowDays = 7) {
   const since = new Date();
   since.setDate(since.getDate() - windowDays);
 
@@ -33,7 +33,7 @@ export async function detectClusters(windowDays = 7) {
   const recentConns = await db
     .select()
     .from(connections)
-    .where(sql`${connections.createdAt} > ${since}`)
+    .where(sql`${connections.workspaceId} = ${workspaceId} AND ${connections.createdAt} > ${since}`)
     .orderBy(desc(connections.createdAt));
 
   if (recentConns.length < 3) {
@@ -126,7 +126,7 @@ export async function detectClusters(windowDays = 7) {
   }
 
   // 5. For each candidate cluster, get context and call Claude for labeling
-  const existingClusters = await listSignalClusters("active");
+  const existingClusters = await listSignalClusters(workspaceId, "active");
   const results = [];
 
   for (const candidate of validClusters.slice(0, 5)) {
@@ -136,7 +136,7 @@ export async function detectClusters(windowDays = 7) {
       ? await db
           .select()
           .from(entities)
-          .where(sql`${entities.id} IN (${sql.join(entIds.map((id) => sql`${id}`), sql`, `)})`)
+          .where(sql`${entities.workspaceId} = ${workspaceId} AND ${entities.id} IN (${sql.join(entIds.map((id) => sql`${id}`), sql`, `)})`)
       : [];
 
     // Find related theses via connections
@@ -150,7 +150,7 @@ export async function detectClusters(windowDays = 7) {
       ? await db
           .select()
           .from(theses)
-          .where(sql`${theses.id} IN (${sql.join(thesisIds.map((id) => sql`${id}`), sql`, `)})`)
+          .where(sql`${theses.workspaceId} = ${workspaceId} AND ${theses.id} IN (${sql.join(thesisIds.map((id) => sql`${id}`), sql`, `)})`)
       : [];
 
     // Check if this cluster already exists (similar entity set)
@@ -197,7 +197,7 @@ Classify this cluster. Respond ONLY with valid JSON:
 
       if (existingMatch) {
         // Update existing cluster
-        const updated = await updateSignalCluster(existingMatch.id, {
+        const updated = await updateSignalCluster(workspaceId, existingMatch.id, {
           title: label.title,
           description: label.description,
           pattern: label.pattern,
@@ -209,7 +209,7 @@ Classify this cluster. Respond ONLY with valid JSON:
         results.push({ action: "updated", cluster: updated });
       } else {
         // Create new cluster
-        const cluster = await createSignalCluster({
+        const cluster = await createSignalCluster(workspaceId, {
           title: label.title,
           description: label.description,
           pattern: label.pattern,
@@ -231,7 +231,7 @@ Classify this cluster. Respond ONLY with valid JSON:
   staleThreshold.setDate(staleThreshold.getDate() - windowDays * 2);
   for (const ec of existingClusters) {
     if (new Date(ec.lastUpdated) < staleThreshold) {
-      await updateSignalCluster(ec.id, { status: "stale" });
+      await updateSignalCluster(workspaceId, ec.id, { status: "stale" });
     }
   }
 

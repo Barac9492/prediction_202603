@@ -7,6 +7,7 @@ import {
   upsertEntity,
   createConnection,
 } from "@/lib/db/graph-queries";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,6 +19,7 @@ const DEFAULT_VAULT_PATH = "/Users/yeojooncho/Documents/Obsidian Vault/";
  * Scan Obsidian vault folders, upsert notes as newsEvents, pre-seed connection map entities.
  */
 export async function POST() {
+  const workspaceId = await getWorkspaceId();
   const vaultPath = process.env.OBSIDIAN_VAULT_PATH || DEFAULT_VAULT_PATH;
 
   let notes: VaultNote[];
@@ -54,12 +56,12 @@ export async function POST() {
       : note.mtime;
 
     // Check for existing event by URL
-    const existing = await getNewsEventByUrl(note.url);
+    const existing = await getNewsEventByUrl(workspaceId, note.url);
 
     if (existing) {
       // Compare mtime — if file is newer, update content and re-process
       if (note.mtime > (existing.ingestedAt ?? new Date(0))) {
-        await updateNewsEvent(existing.id, {
+        await updateNewsEvent(workspaceId, existing.id, {
           title: note.title,
           content,
           publishedAt,
@@ -72,7 +74,7 @@ export async function POST() {
     }
 
     // Insert new
-    await insertNewsEvent({
+    await insertNewsEvent(workspaceId, {
       title: note.title,
       url: note.url,
       source: "obsidian",
@@ -85,17 +87,17 @@ export async function POST() {
     if (note.connectionTopics) {
       const [topicA, topicB] = note.connectionTopics;
       try {
-        const entityA = await upsertEntity({
+        const entityA = await upsertEntity(workspaceId, {
           name: topicA,
           type: "concept",
           description: `Concept from Obsidian connection map: ${note.title}`,
         });
-        const entityB = await upsertEntity({
+        const entityB = await upsertEntity(workspaceId, {
           name: topicB,
           type: "concept",
           description: `Concept from Obsidian connection map: ${note.title}`,
         });
-        await createConnection({
+        await createConnection(workspaceId, {
           fromType: "entity",
           fromId: entityA.id,
           toType: "entity",

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runAndStoreBacktest } from "@/lib/backtest/engine";
 import { listBacktestRuns } from "@/lib/db/graph-queries";
 import { DEFAULT_PARAMS, type ProbabilityParams } from "@/lib/db/probability";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -9,6 +10,7 @@ export const maxDuration = 300;
 /** POST /api/backtest - Run a single backtest with given parameters */
 export async function POST(req: NextRequest) {
   try {
+    const workspaceId = await getWorkspaceId();
     const body = await req.json().catch(() => ({}));
 
     const params: ProbabilityParams = {
@@ -19,7 +21,7 @@ export async function POST(req: NextRequest) {
       neutralFactor: body.neutralFactor ?? DEFAULT_PARAMS.neutralFactor,
     };
 
-    const { runId, result } = await runAndStoreBacktest({
+    const { runId, result } = await runAndStoreBacktest(workspaceId, {
       name: body.name,
       params,
       intervalHours: body.intervalHours,
@@ -47,10 +49,12 @@ export async function POST(req: NextRequest) {
 
 /** GET /api/backtest - List past backtest runs */
 export async function GET(req: NextRequest) {
+  const workspaceId = await getWorkspaceId();
   const url = new URL(req.url);
   const thesisId = url.searchParams.get("thesisId");
 
   const runs = await listBacktestRuns(
+    workspaceId,
     thesisId ? parseInt(thesisId, 10) : undefined
   );
 

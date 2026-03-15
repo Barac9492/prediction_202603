@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { insertNewsEvent } from "@/lib/db/graph-queries";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -117,6 +118,7 @@ async function fetchFeed(feedUrl: string, source: string): Promise<FeedItem[]> {
 
 /** POST /api/feed/fetch - Fetch RSS feeds and store new AI-relevant news events */
 export async function POST() {
+  const workspaceId = await getWorkspaceId();
   const seenUrls = new Set<string>();
   let inserted = 0;
   let skipped = 0;
@@ -130,7 +132,7 @@ export async function POST() {
       if (!isAiRelevant(item.title, item.summary)) continue;
       total++;
       try {
-        const result = await insertNewsEvent({
+        const result = await insertNewsEvent(workspaceId, {
           title: item.title,
           url: item.url,
           source: item.source,

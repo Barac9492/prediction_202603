@@ -22,8 +22,8 @@ interface GeneratedRec {
  * Generate investment recommendations from active theses with strong signals.
  * Only considers theses with probability > 0.65 or < 0.35, or high momentum.
  */
-export async function generateRecommendations() {
-  const probabilities = await getCurrentProbabilities();
+export async function generateRecommendations(workspaceId: string) {
+  const probabilities = await getCurrentProbabilities(workspaceId);
 
   // Filter to strong-signal theses
   const candidates = probabilities.filter(
@@ -38,7 +38,7 @@ export async function generateRecommendations() {
   }
 
   // Check existing active recs to avoid redundancy
-  const activeRecs = await listRecommendations({ status: "active" });
+  const activeRecs = await listRecommendations(workspaceId, { status: "active" });
   const activeAssetActions = new Set(
     activeRecs.map((r) => `${r.asset}::${r.action}`)
   );
@@ -124,7 +124,7 @@ Respond with ONLY the JSON array, no other text.`,
       console.error(`Price lookup failed for "${rec.asset}":`, err);
     }
 
-    const inserted = await insertRecommendation({
+    const inserted = await insertRecommendation(workspaceId, {
       thesisId: rec.thesisId,
       action: rec.action,
       asset: rec.asset,

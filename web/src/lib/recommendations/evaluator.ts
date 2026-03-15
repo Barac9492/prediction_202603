@@ -10,10 +10,10 @@ import { fetchPrice } from "@/lib/markets/yahoo";
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-20250514";
 
-async function reinforceThesisConnections(thesisId: number, wasCorrect: boolean) {
-  const thesisConns = await getThesisConnections(thesisId);
+async function reinforceThesisConnections(workspaceId: string, thesisId: number, wasCorrect: boolean) {
+  const thesisConns = await getThesisConnections(workspaceId, thesisId);
   for (const conn of thesisConns) {
-    await reinforceConnection(conn.id, wasCorrect);
+    await reinforceConnection(workspaceId, conn.id, wasCorrect);
   }
 }
 
@@ -31,17 +31,17 @@ interface EvaluationResult {
  * Falls back to LLM for HOLD/WATCH or recs without tickers.
  * Computes Brier score: (conviction - outcome)^2
  */
-export async function evaluateExpiredRecs(): Promise<{
+export async function evaluateExpiredRecs(workspaceId: string): Promise<{
   evaluated: number;
   results: EvaluationResult[];
 }> {
-  const expired = await getExpiredRecommendations();
+  const expired = await getExpiredRecommendations(workspaceId);
 
   if (expired.length === 0) {
     return { evaluated: 0, results: [] };
   }
 
-  const currentProbs = await getCurrentProbabilities();
+  const currentProbs = await getCurrentProbabilities(workspaceId);
   const probMap = new Map(currentProbs.map((p) => [p.thesisId, p]));
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -82,7 +82,7 @@ export async function evaluateExpiredRecs(): Promise<{
         const returnPct = (actualReturn * 100).toFixed(2);
         const outcomeNotes = `${rec.ticker}: $${rec.priceAtCreation!.toFixed(2)} → $${priceAtResolution.toFixed(2)} (${actualReturn > 0 ? "+" : ""}${returnPct}%)`;
 
-        await resolveRecommendation(rec.id, {
+        await resolveRecommendation(workspaceId, rec.id, {
           status,
           outcomeNotes,
           brierScore,
@@ -92,7 +92,7 @@ export async function evaluateExpiredRecs(): Promise<{
         });
 
         if (rec.thesisId) {
-          await reinforceThesisConnections(rec.thesisId, correct);
+          await reinforceThesisConnections(workspaceId, rec.thesisId,correct);
         }
 
         results.push({
@@ -162,7 +162,7 @@ Respond with ONLY the JSON, no other text.`,
       ? "resolved_correct"
       : "resolved_incorrect";
 
-    await resolveRecommendation(rec.id, {
+    await resolveRecommendation(workspaceId, rec.id, {
       status,
       outcomeNotes: evaluation.notes,
       brierScore,
@@ -170,7 +170,7 @@ Respond with ONLY the JSON, no other text.`,
     });
 
     if (rec.thesisId) {
-      await reinforceThesisConnections(rec.thesisId, evaluation.correct);
+      await reinforceThesisConnections(workspaceId, rec.thesisId,evaluation.correct);
     }
 
     results.push({

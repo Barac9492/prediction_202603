@@ -101,11 +101,16 @@ export function RecommendationsLanding({
         </div>
         <div className="rounded-xl border border-pm-border px-4 py-3">
           <div className="text-xs font-medium text-pm-text-meta">
-            Avg Brier Score
+            Accuracy Score
           </div>
           <div className="mt-1 text-2xl font-bold text-pm-text-primary">
-            {avgBrier !== null ? avgBrier.toFixed(3) : "—"}
+            {avgBrier !== null ? `${((1 - avgBrier) * 100).toFixed(1)}%` : "—"}
           </div>
+          {avgBrier !== null && (
+            <div className="text-xs text-pm-text-meta mt-0.5">
+              Brier: {avgBrier.toFixed(3)}
+            </div>
+          )}
         </div>
       </div>
 
@@ -121,9 +126,15 @@ export function RecommendationsLanding({
           Active Recommendations ({active.length})
         </h2>
         {active.length === 0 ? (
-          <div className="rounded-lg border border-pm-border bg-white p-6 text-center text-pm-muted">
-            No active recommendations. Use the generate button above to create
-            some.
+          <div className="rounded-lg border border-pm-border bg-white p-6 text-center">
+            <p className="text-pm-text-primary font-medium">No active recommendations yet</p>
+            <p className="mt-2 text-sm text-pm-muted">
+              Recommendations are generated from your{" "}
+              <Link href="/thesis" className="text-pm-blue hover:underline">
+                research theses
+              </Link>
+              . Create theses first, then use the generate button above to produce actionable picks.
+            </p>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -176,7 +187,7 @@ export function RecommendationsLanding({
                   {/* Conviction gauge */}
                   <div className="mb-2">
                     <div className="mb-1 flex items-center justify-between text-xs text-pm-text-meta">
-                      <span>Conviction</span>
+                      <span title="How confident the system is in this recommendation">Conviction</span>
                       <span className="font-bold text-pm-text-primary">
                         {convPct}%
                       </span>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCalibrationStats, listPredictions } from "@/lib/db/queries";
 import { getCurrentProbabilities } from "@/lib/db/probability";
+import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +17,14 @@ export const dynamic = "force-dynamic";
  * Use format=markdown for LP-ready reports.
  */
 export async function GET(req: NextRequest) {
+  const workspaceId = await getWorkspaceId();
   const format = req.nextUrl.searchParams.get("format") ?? "json";
 
   const [calibration, allPreds, pendingPreds, thesisProbs] = await Promise.all([
-    getCalibrationStats(),
-    listPredictions("all"),
-    listPredictions("pending"),
-    getCurrentProbabilities(),
+    getCalibrationStats(workspaceId),
+    listPredictions(workspaceId, "all"),
+    listPredictions(workspaceId, "pending"),
+    getCurrentProbabilities(workspaceId),
   ]);
 
   const totalPredictions = allPreds.length;
