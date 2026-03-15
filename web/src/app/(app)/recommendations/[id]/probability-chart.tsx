@@ -40,7 +40,7 @@ export function RecProbabilityChart({
               tickFormatter={(v) => `${v}%`}
             />
             <Tooltip
-              formatter={(value: number) => [`${value}%`, "Probability"]}
+              formatter={(value) => [`${value}%`, "Probability"]}
             />
             <Area
               type="monotone"

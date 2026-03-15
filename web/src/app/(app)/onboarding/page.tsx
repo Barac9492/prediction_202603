@@ -65,12 +65,21 @@ export default function OnboardingPage() {
           </p>
         </div>
         <div className="flex justify-center">
-          <CreateOrganization
-            afterCreateOrganizationUrl="/"
-            appearance={{
-              elements: { rootBox: "w-full max-w-md" },
-            }}
-          />
+          {CreateOrganization ? (
+            <CreateOrganization
+              afterCreateOrganizationUrl="/"
+              appearance={{
+                elements: { rootBox: "w-full max-w-md" },
+              }}
+            />
+          ) : (
+            <button
+              onClick={() => setStep("create-thesis")}
+              className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700"
+            >
+              Continue (Dev Mode)
+            </button>
+          )}
         </div>
       </div>
     );
