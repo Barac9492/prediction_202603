@@ -1,6 +1,7 @@
 import { getGraphData, getEntitiesForThesis } from "@/lib/db/graph-queries";
 import { BackfillButton } from "@/components/backfill-button";
 import { EntityNetworkPanel } from "@/components/entity-network-panel";
+import { GraphVisualization } from "@/components/graph-visualization";
 import { getWorkspaceId } from "@/lib/db/workspace";
 
 const RELATION_STYLES: Record<string, string> = {
@@ -120,6 +121,51 @@ export default async function GraphPage() {
           </div>
         ))}
       </div>
+
+      {/* Interactive Graph Visualization */}
+      {(entityNodes.length > 0 || thesisNodes.length > 0) && (
+        <section>
+          <h2 className="text-lg font-semibold text-pm-text-primary mb-3">
+            Graph Visualization
+          </h2>
+          <GraphVisualization
+            nodes={[
+              ...entityNodes
+                .filter((e) => (entityConnCount[e.id] || 0) >= 2)
+                .map((e) => ({
+                  id: `entity-${e.id}`,
+                  label: e.name,
+                  type: "entity" as const,
+                  category: e.category || e.type || "unknown",
+                  connectionCount: entityConnCount[e.id] || 0,
+                })),
+              ...thesisNodes.map((t) => ({
+                id: `thesis-${t.id}`,
+                label: t.title,
+                type: "thesis" as const,
+                direction: t.direction,
+                connectionCount: 0,
+              })),
+            ]}
+            edges={edges
+              .filter((e) => {
+                // Entity-entity or entity-thesis edges only
+                if (e.fromType === "entity" && e.toType === "entity") {
+                  return (entityConnCount[e.fromId] || 0) >= 2 && (entityConnCount[e.toId] || 0) >= 2;
+                }
+                if (e.fromType === "entity" && e.toType === "thesis") {
+                  return (entityConnCount[e.fromId] || 0) >= 2;
+                }
+                return false;
+              })
+              .map((e) => ({
+                source: `${e.fromType === "entity" ? "entity" : "thesis"}-${e.fromId}`,
+                target: `${e.toType === "entity" ? "entity" : "thesis"}-${e.toId}`,
+                relation: e.relation,
+              }))}
+          />
+        </section>
+      )}
 
       {/* Entity Network Section */}
       {entityNodes.length > 0 && (

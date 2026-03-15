@@ -21,13 +21,14 @@ import { CalibrationCurve } from "@/app/(app)/track-record/calibration-curve";
 import { TradeLog } from "./trade-log";
 import { listTheses } from "@/lib/db/graph-queries";
 import { getWorkspaceId } from "@/lib/db/workspace";
+import { computeSourceCredibility } from "@/lib/db/source-credibility";
 
 export const dynamic = "force-dynamic";
 
 export default async function PerformancePage() {
   const workspaceId = await getWorkspaceId();
 
-  const [quintiles, actionReturns, cumReturns, worstMisses, rolling, allRecs, sharpe, drawdown, profitFactor, magnitude, calibration, brier, signals, allTheses] =
+  const [quintiles, actionReturns, cumReturns, worstMisses, rolling, allRecs, sharpe, drawdown, profitFactor, magnitude, calibration, brier, signals, allTheses, credibility] =
     await Promise.all([
       getHitRateByConvictionQuintile(workspaceId),
       getReturnsByAction(workspaceId),
@@ -43,6 +44,7 @@ export default async function PerformancePage() {
       getOverallBrierScore(workspaceId),
       getSignalQuality(workspaceId),
       listTheses(workspaceId),
+      computeSourceCredibility(workspaceId),
     ]);
 
   // Build thesis lookup for trade log
@@ -501,6 +503,46 @@ export default async function PerformancePage() {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Source Credibility */}
+      {credibility.size > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold text-pm-text-primary">
+            Source Credibility
+          </h2>
+          <p className="mb-2 text-xs text-pm-muted">
+            Multiplier applied to signals from each source based on historical accuracy. Range: 0.5x (all wrong) to 1.5x (all right).
+          </p>
+          <div className="overflow-hidden rounded-lg border border-pm-border bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-pm-border bg-gray-50">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">Source</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">Score</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-pm-muted">Impact</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...credibility.entries()]
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([source, score]) => (
+                    <tr key={source} className="border-b border-pm-border last:border-0">
+                      <td className="px-4 py-2 font-medium text-pm-text-primary">{source}</td>
+                      <td className="px-4 py-2 tabular-nums text-pm-text-primary">{score.toFixed(2)}x</td>
+                      <td className="px-4 py-2">
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                          score > 1.1 ? "bg-green-100 text-green-700" : score < 0.9 ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600"
+                        }`}>
+                          {score > 1.1 ? "Boosts signals" : score < 0.9 ? "Dampens signals" : "Neutral"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

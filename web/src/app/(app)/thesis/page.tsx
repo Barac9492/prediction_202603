@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
+import { OverdueThesesBanner } from "@/components/overdue-theses-banner";
 
 interface Thesis {
   id: number;
@@ -213,6 +214,8 @@ export default function ThesisPage() {
           </button>
         </div>
       </div>
+
+      <OverdueThesesBanner />
 
       {suggestMsg && (
         <div className="text-sm px-4 py-2 rounded-lg bg-violet-50 text-violet-700 border border-violet-200">

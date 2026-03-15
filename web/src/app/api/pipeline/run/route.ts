@@ -78,6 +78,14 @@ export async function POST(req: NextRequest) {
       steps.signalFusion = { error: String(err) };
     }
 
+    // Step 5.5: Detect thesis interactions (REINFORCES/CONTRADICTS)
+    try {
+      const { detectThesisInteractions } = await import("@/lib/analysis/thesis-interactions");
+      steps.thesisInteractions = await detectThesisInteractions(workspaceId);
+    } catch (err) {
+      steps.thesisInteractions = { error: String(err) };
+    }
+
     // Step 6: Evaluate expired recommendations
     let resolvedCount = 0;
     try {
@@ -107,6 +115,14 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         steps.backtestRefine = { error: String(err) };
       }
+    }
+
+    // Step 9: Check thesis deadlines (suggest resolution for overdue theses)
+    try {
+      const { checkThesisDeadlines } = await import("@/lib/analysis/thesis-lifecycle");
+      steps.thesisDeadlines = await checkThesisDeadlines(workspaceId);
+    } catch (err) {
+      steps.thesisDeadlines = { error: String(err) };
     }
 
     allSteps[workspaceId] = steps;

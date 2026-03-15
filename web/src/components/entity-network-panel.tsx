@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 interface Entity {
   id: number;
@@ -154,6 +155,16 @@ export function EntityNetworkPanel({
                     </div>
                   </div>
                 )}
+
+                {/* Deep dive link */}
+                <div className="pt-2 border-t border-pm-border">
+                  <Link
+                    href={`/entities/${entity.id}`}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                  >
+                    View full page &rarr;
+                  </Link>
+                </div>
 
                 {/* Connection details */}
                 {network.connections.length > 0 && (

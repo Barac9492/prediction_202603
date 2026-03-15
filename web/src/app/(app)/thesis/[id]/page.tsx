@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/graph-queries";
 import { getProbabilityHistory } from "@/lib/db/probability";
 import { ThesisDetail } from "@/components/thesis-detail";
+import { ProbabilityExplainer } from "@/components/probability-explainer";
 import { getWorkspaceId } from "@/lib/db/workspace";
 
 export default async function ThesisDetailPage({
@@ -167,6 +168,9 @@ export default async function ThesisDetailPage({
           </p>
         </div>
       </div>
+
+      {/* Probability Explainer */}
+      <ProbabilityExplainer thesisId={thesis.id} />
 
       {/* Description & Resolution Criteria */}
       {(thesis.description || thesis.resolutionCriteria) && (

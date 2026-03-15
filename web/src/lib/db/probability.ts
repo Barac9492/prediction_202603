@@ -2,6 +2,7 @@ import { db } from "./index";
 import { theses, connections, newsEvents, thesisProbabilitySnapshots } from "./schema";
 import { eq, desc, and, sql, lte } from "drizzle-orm";
 import { getThesisInteractions, getMarketSignals } from "./graph-queries";
+import { computeSourceCredibility, getCredibilityForSource } from "./source-credibility";
 
 export interface ProbabilityParams {
   decayRate: number;       // exponential decay per day (default 0.03)
@@ -42,6 +43,8 @@ export async function computeThesisProbabilityAtTime(
     allConnections?: typeof connections.$inferSelect[];
     skipCrossThesis?: boolean;
     skipMarketBlend?: boolean;
+    credibilityMap?: Map<string, number>;
+    newsSourceMap?: Map<number, string>;
   },
 ): Promise<ProbabilityResult> {
   const asOf = asOfDate.getTime();
@@ -68,13 +71,36 @@ export async function computeThesisProbabilityAtTime(
     return { probability: 0.5, bullishWeight: 0, bearishWeight: 0, neutralWeight: 0, signalCount: 0, topNewsIds: [] };
   }
 
+  // Build credibility and news-source maps if not provided
+  let credMap: Map<string, number>;
+  let newsSourceMap: Map<number, string>;
+  if (options?.credibilityMap && options?.newsSourceMap) {
+    credMap = options.credibilityMap;
+    newsSourceMap = options.newsSourceMap;
+  } else {
+    credMap = await computeSourceCredibility(workspaceId);
+    const sourceNewsIds = conns.map((c) => c.sourceNewsId).filter((id): id is number => id !== null);
+    if (sourceNewsIds.length > 0) {
+      const newsRows = await db
+        .select({ id: newsEvents.id, source: newsEvents.source })
+        .from(newsEvents)
+        .where(eq(newsEvents.workspaceId, workspaceId));
+      newsSourceMap = new Map(newsRows.map((r) => [r.id, r.source ?? ""]));
+    } else {
+      newsSourceMap = new Map();
+    }
+  }
+
   let bullish = 0;
   let bearish = 0;
   let neutral = 0;
   const newsIdSet = new Set<number>();
 
   for (const conn of conns) {
-    const rawWeight = (conn.adjustedWeight ?? conn.weight) * conn.confidence;
+    const sourceNewsId = conn.sourceNewsId;
+    const source = sourceNewsId ? (newsSourceMap.get(sourceNewsId) ?? null) : null;
+    const credibility = getCredibilityForSource(credMap, source);
+    const rawWeight = (conn.adjustedWeight ?? conn.weight) * conn.confidence * credibility;
     const ageMs = asOf - new Date(conn.createdAt).getTime();
     const ageDays = ageMs / (1000 * 60 * 60 * 24);
     const decayFactor = Math.exp(-ageDays * params.decayRate);
@@ -170,10 +196,23 @@ export async function snapshotAllProbabilities(workspaceId: string): Promise<Arr
     .from(theses)
     .where(and(eq(theses.isActive, true), eq(theses.workspaceId, workspaceId)));
 
+  // Pre-compute credibility and news-source maps for all theses
+  const { getActiveParams } = await import("@/lib/backtest/refiner");
+  const params = await getActiveParams(workspaceId);
+  const credibilityMap = await computeSourceCredibility(workspaceId);
+  const newsSourceRows = await db
+    .select({ id: newsEvents.id, source: newsEvents.source })
+    .from(newsEvents)
+    .where(eq(newsEvents.workspaceId, workspaceId));
+  const newsSourceMap = new Map(newsSourceRows.map((r) => [r.id, r.source ?? ""]));
+
   const results = [];
 
   for (const thesis of activeTheses) {
-    const computed = await computeThesisProbability(workspaceId, thesis.id);
+    const computed = await computeThesisProbabilityAtTime(workspaceId, thesis.id, new Date(), params, {
+      credibilityMap,
+      newsSourceMap,
+    });
 
     const [prevSnapshot] = await db
       .select()

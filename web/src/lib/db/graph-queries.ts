@@ -911,3 +911,79 @@ export async function getProbabilityMovers(workspaceId: string, limit = 5) {
     .sort((a, b) => Math.abs(b.momentum ?? 0) - Math.abs(a.momentum ?? 0))
     .slice(0, limit);
 }
+
+// — Probability explainer queries ————————————————————————————
+
+export async function getRecentSnapshotsForThesis(
+  workspaceId: string,
+  thesisId: number,
+  count = 2
+) {
+  return db
+    .select()
+    .from(thesisProbabilitySnapshots)
+    .where(
+      and(
+        eq(thesisProbabilitySnapshots.workspaceId, workspaceId),
+        eq(thesisProbabilitySnapshots.thesisId, thesisId)
+      )
+    )
+    .orderBy(desc(thesisProbabilitySnapshots.computedAt))
+    .limit(count);
+}
+
+export async function getConnectionsBetweenDates(
+  workspaceId: string,
+  thesisId: number,
+  since: Date,
+  until: Date
+) {
+  const conns = await db
+    .select()
+    .from(connections)
+    .where(
+      and(
+        eq(connections.workspaceId, workspaceId),
+        eq(connections.toType, "thesis"),
+        eq(connections.toId, thesisId),
+        sql`${connections.createdAt} >= ${since}`,
+        lte(connections.createdAt, until)
+      )
+    );
+
+  // Enrich with news event details
+  const newsIds = conns.map((c) => c.sourceNewsId).filter((id): id is number => id !== null);
+  const newsMap = new Map<number, typeof newsEvents.$inferSelect>();
+  if (newsIds.length > 0) {
+    const newsRows = await db
+      .select()
+      .from(newsEvents)
+      .where(
+        sql`${newsEvents.id} IN (${sql.join(
+          newsIds.map((id) => sql`${id}`),
+          sql`, `
+        )})`
+      );
+    for (const n of newsRows) newsMap.set(n.id, n);
+  }
+
+  return conns.map((c) => ({
+    ...c,
+    news: c.sourceNewsId ? newsMap.get(c.sourceNewsId) ?? null : null,
+  }));
+}
+
+// — Thesis lifecycle queries ————————————————————————————
+
+export async function getOverdueTheses(workspaceId: string) {
+  return db
+    .select()
+    .from(theses)
+    .where(
+      and(
+        eq(theses.workspaceId, workspaceId),
+        eq(theses.isActive, true),
+        sql`${theses.deadline} IS NOT NULL AND ${theses.deadline} < NOW()`
+      )
+    );
+}

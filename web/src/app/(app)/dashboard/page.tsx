@@ -4,7 +4,9 @@ import {
   getUncoveredEntities,
   getRecentNews,
   getProbabilityMovers,
+  getContradictingEvidence,
 } from "@/lib/db/graph-queries";
+import { getCurrentProbabilities } from "@/lib/db/probability";
 import Link from "next/link";
 import { getWorkspaceId } from "@/lib/db/workspace";
 
@@ -28,13 +30,36 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default async function DashboardPage() {
   const workspaceId = await getWorkspaceId();
 
-  const [activeClusters, recentObs, uncoveredEntities, recentNews, movers] = await Promise.all([
+  const [activeClusters, recentObs, uncoveredEntities, recentNews, movers, currentProbs] = await Promise.all([
     listSignalClusters(workspaceId, "active"),
     getRecentEntityObservations(workspaceId, 20),
     getUncoveredEntities(workspaceId),
     getRecentNews(workspaceId, 5),
     getProbabilityMovers(workspaceId, 5),
+    getCurrentProbabilities(workspaceId),
   ]);
+
+  // Find high-conviction theses and check for contradicting evidence
+  const highConviction = currentProbs.filter(
+    (t) => t.probability > 0.75 || t.probability < 0.25
+  );
+  const contradictions = highConviction.length > 0
+    ? await getContradictingEvidence(
+        workspaceId,
+        highConviction.map((t) => ({ thesisId: t.thesisId, direction: t.direction }))
+      )
+    : [];
+
+  // Group contradictions by thesis
+  const contradictionsByThesis = new Map<number, typeof contradictions>();
+  for (const c of contradictions) {
+    const arr = contradictionsByThesis.get(c.thesisId) ?? [];
+    arr.push(c);
+    contradictionsByThesis.set(c.thesisId, arr);
+  }
+  const contradictedTheses = highConviction.filter(
+    (t) => contradictionsByThesis.has(t.thesisId)
+  );
 
   return (
     <div className="space-y-6">
@@ -44,6 +69,64 @@ export default async function DashboardPage() {
           Detected patterns, entity signals, and coverage gaps.
         </p>
       </div>
+
+      {/* Contradiction Alert */}
+      {contradictedTheses.length > 0 && (
+        <section className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-amber-800">
+              Contradicting Evidence Detected
+            </h2>
+            <Link
+              href="/briefing"
+              className="text-xs font-medium text-amber-700 hover:text-amber-900 underline"
+            >
+              View briefing
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {contradictedTheses.map((t) => {
+              const news = contradictionsByThesis.get(t.thesisId) ?? [];
+              const severity = t.probability > 0.85 || t.probability < 0.15;
+              return (
+                <div
+                  key={t.thesisId}
+                  className={`rounded border px-3 py-2 ${
+                    severity
+                      ? "border-red-300 bg-red-50"
+                      : "border-amber-200 bg-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold ${severity ? "text-red-700" : "text-amber-700"}`}>
+                      {severity ? "HIGH" : "WARN"}
+                    </span>
+                    <Link
+                      href={`/thesis/${t.thesisId}`}
+                      className="text-sm font-medium text-pm-text-primary hover:text-pm-blue"
+                    >
+                      {t.title}
+                    </Link>
+                    <span className="text-xs text-pm-muted">
+                      {Math.round(t.probability * 100)}% {t.direction}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {news.map((n) => (
+                      <span
+                        key={n.newsId}
+                        className="text-xs text-pm-muted"
+                      >
+                        {n.newsSource ? `${n.newsSource}: ` : ""}{n.newsTitle.length > 60 ? n.newsTitle.slice(0, 60) + "..." : n.newsTitle}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Detected Patterns */}
       <section>

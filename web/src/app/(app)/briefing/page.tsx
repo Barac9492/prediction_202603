@@ -4,6 +4,7 @@ import {
   getContradictingEvidence,
 } from "@/lib/db/graph-queries";
 import { BriefingView } from "@/components/briefing-view";
+import { BriefingNarrative } from "@/components/briefing-narrative";
 import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +64,7 @@ export default async function BriefingPage() {
           Your daily actionable summary.
         </p>
       </div>
+      <BriefingNarrative />
       <BriefingView
         expiring={expiring}
         biggestMoves={biggestMoves}
