@@ -9,6 +9,7 @@ import {
   signalClusters,
   recommendations,
   priceSnapshots,
+  thesisProbabilitySnapshots,
 } from "./schema";
 import { eq, desc, and, sql, lte } from "drizzle-orm";
 
@@ -868,4 +869,45 @@ export async function getUncoveredEntities(workspaceId: string) {
   return allEntities.filter(
     (e) => e.signalCount > 0 && !entitiesWithThesis.has(e.entity.id)
   );
+}
+
+// — Dashboard activity queries ————————————————————————————
+
+export async function getRecentNews(workspaceId: string, limit = 5) {
+  return db
+    .select()
+    .from(newsEvents)
+    .where(eq(newsEvents.workspaceId, workspaceId))
+    .orderBy(desc(newsEvents.publishedAt))
+    .limit(limit);
+}
+
+export async function getProbabilityMovers(workspaceId: string, limit = 5) {
+  // Get latest snapshot per thesis, ordered by |momentum|
+  const latest = await db
+    .select({
+      thesisId: thesisProbabilitySnapshots.thesisId,
+      probability: thesisProbabilitySnapshots.probability,
+      momentum: thesisProbabilitySnapshots.momentum,
+      computedAt: thesisProbabilitySnapshots.computedAt,
+      thesisTitle: theses.title,
+      thesisDirection: theses.direction,
+    })
+    .from(thesisProbabilitySnapshots)
+    .innerJoin(theses, eq(thesisProbabilitySnapshots.thesisId, theses.id))
+    .where(eq(thesisProbabilitySnapshots.workspaceId, workspaceId))
+    .orderBy(desc(thesisProbabilitySnapshots.computedAt))
+    .limit(100);
+
+  // Deduplicate to latest per thesis, then sort by |momentum|
+  const seen = new Set<number>();
+  const unique = latest.filter((row) => {
+    if (seen.has(row.thesisId)) return false;
+    seen.add(row.thesisId);
+    return true;
+  });
+
+  return unique
+    .sort((a, b) => Math.abs(b.momentum ?? 0) - Math.abs(a.momentum ?? 0))
+    .slice(0, limit);
 }

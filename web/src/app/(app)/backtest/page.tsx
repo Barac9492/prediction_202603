@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -19,6 +19,19 @@ interface ThesisResult {
   outcome: number;
   snapshotCount?: number;
   probabilities?: Array<{ timestamp: string; probability: number }>;
+}
+
+interface PastRun {
+  id: number;
+  name: string;
+  status: string;
+  accuracy: number | null;
+  totalSignals: number | null;
+  correctSignals: number | null;
+  parameters: Record<string, unknown> | null;
+  results: Record<string, unknown> | null;
+  createdAt: string;
+  completedAt: string | null;
 }
 
 interface SweepRow {
@@ -57,8 +70,17 @@ export default function BacktestPage() {
   const [sweepResults, setSweepResults] = useState<SweepRow[] | null>(null);
   const [selectedThesis, setSelectedThesis] = useState<ThesisResult | null>(null);
 
+  const [pastRuns, setPastRuns] = useState<PastRun[]>([]);
+  const [expandedRun, setExpandedRun] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [sweepLoading, setSweepLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/backtest")
+      .then((res) => res.json())
+      .then((data) => setPastRuns(data.runs ?? []))
+      .catch(() => {});
+  }, []);
 
   async function runSingle() {
     setLoading(true);
@@ -296,6 +318,101 @@ export default function BacktestPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Past Runs */}
+      {pastRuns.length > 0 && (
+        <div className="rounded-xl border border-pm-border bg-white overflow-hidden">
+          <div className="px-4 py-3 border-b border-pm-border bg-pm-bg-search">
+            <h2 className="text-lg font-semibold text-pm-text-primary">
+              Past Runs ({pastRuns.length})
+            </h2>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-pm-border">
+                <th className="text-left px-4 py-2 text-pm-muted font-medium">Name</th>
+                <th className="text-left px-4 py-2 text-pm-muted font-medium">Date</th>
+                <th className="text-right px-4 py-2 text-pm-muted font-medium">Accuracy</th>
+                <th className="text-right px-4 py-2 text-pm-muted font-medium">Signals</th>
+                <th className="text-left px-4 py-2 text-pm-muted font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pastRuns.map((run) => (
+                <tr
+                  key={run.id}
+                  className="border-b border-pm-border last:border-0 hover:bg-pm-bg-search cursor-pointer"
+                  onClick={() => setExpandedRun(expandedRun === run.id ? null : run.id)}
+                >
+                  <td className="px-4 py-2 text-pm-text-primary">{run.name}</td>
+                  <td className="px-4 py-2 text-pm-text-secondary text-xs">
+                    {new Date(run.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className={`px-4 py-2 text-right font-mono ${
+                    run.accuracy != null
+                      ? run.accuracy > 0.75 ? "text-green-600" : run.accuracy > 0.5 ? "text-yellow-600" : "text-red-600"
+                      : "text-pm-muted"
+                  }`}>
+                    {run.accuracy != null ? `${(run.accuracy * 100).toFixed(1)}%` : "—"}
+                  </td>
+                  <td className="px-4 py-2 text-right text-pm-muted">
+                    {run.correctSignals ?? 0}/{run.totalSignals ?? 0}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                      run.status === "completed" ? "bg-green-100 text-green-700"
+                      : run.status === "failed" ? "bg-red-100 text-red-700"
+                      : "bg-yellow-100 text-yellow-700"
+                    }`}>
+                      {run.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {expandedRun != null && (() => {
+            const run = pastRuns.find((r) => r.id === expandedRun);
+            const results = run?.results as { thesisResults?: ThesisResult[] } | null;
+            if (!results?.thesisResults?.length) return null;
+            return (
+              <div className="border-t border-pm-border bg-gray-50 p-4">
+                <h3 className="text-sm font-semibold text-pm-text-primary mb-2">
+                  Per-Thesis Results — {run?.name}
+                </h3>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-pm-muted">
+                      <th className="text-left py-1">Thesis</th>
+                      <th className="text-right py-1">Final Prob</th>
+                      <th className="text-right py-1">Outcome</th>
+                      <th className="text-right py-1">Brier</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.thesisResults.map((tr) => (
+                      <tr key={tr.thesisId} className="border-t border-pm-border">
+                        <td className="py-1 text-pm-text-primary">{tr.title}</td>
+                        <td className="py-1 text-right font-mono">
+                          {(tr.finalProbability * 100).toFixed(1)}%
+                        </td>
+                        <td className="py-1 text-right">
+                          <span className={tr.outcome === 1 ? "text-green-600" : "text-red-600"}>
+                            {tr.outcome === 1 ? "Correct" : "Incorrect"}
+                          </span>
+                        </td>
+                        <td className={`py-1 text-right font-mono ${brierColor(tr.brierScore)}`}>
+                          {tr.brierScore.toFixed(4)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       )}
 

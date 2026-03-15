@@ -2,7 +2,10 @@ import {
   listSignalClusters,
   getRecentEntityObservations,
   getUncoveredEntities,
+  getRecentNews,
+  getProbabilityMovers,
 } from "@/lib/db/graph-queries";
+import Link from "next/link";
 import { getWorkspaceId } from "@/lib/db/workspace";
 
 const PATTERN_STYLES: Record<string, string> = {
@@ -25,10 +28,12 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default async function DashboardPage() {
   const workspaceId = await getWorkspaceId();
 
-  const [activeClusters, recentObs, uncoveredEntities] = await Promise.all([
+  const [activeClusters, recentObs, uncoveredEntities, recentNews, movers] = await Promise.all([
     listSignalClusters(workspaceId, "active"),
     getRecentEntityObservations(workspaceId, 20),
     getUncoveredEntities(workspaceId),
+    getRecentNews(workspaceId, 5),
+    getProbabilityMovers(workspaceId, 5),
   ]);
 
   return (
@@ -97,6 +102,124 @@ export default async function DashboardPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </section>
+
+      {/* Recent News */}
+      <section>
+        <h2 className="text-lg font-semibold text-pm-text-primary mb-3">
+          Recent News
+        </h2>
+        {recentNews.length === 0 ? (
+          <div className="rounded-lg border border-pm-border bg-white p-6 text-center text-pm-muted">
+            <p>No news events yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {recentNews.map((news) => (
+              <div
+                key={news.id}
+                className="flex items-center gap-3 rounded-lg border border-pm-border bg-white p-3"
+              >
+                <span
+                  className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
+                    news.sentiment === "bullish"
+                      ? "bg-green-500"
+                      : news.sentiment === "bearish"
+                        ? "bg-red-500"
+                        : "bg-gray-300"
+                  }`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-pm-text-primary">
+                    {news.title}
+                  </p>
+                  <p className="text-xs text-pm-muted">
+                    {news.source}
+                    {news.publishedAt && (
+                      <span className="ml-2">
+                        {new Date(news.publishedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {news.sentiment && (
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                      news.sentiment === "bullish"
+                        ? "bg-green-100 text-green-700"
+                        : news.sentiment === "bearish"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {news.sentiment}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Probability Movers */}
+      <section>
+        <h2 className="text-lg font-semibold text-pm-text-primary mb-3">
+          Probability Movers
+        </h2>
+        {movers.length === 0 ? (
+          <div className="rounded-lg border border-pm-border bg-white p-6 text-center text-pm-muted">
+            <p>No probability snapshots yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {movers.map((m) => {
+              const mom = m.momentum ?? 0;
+              const absMom = Math.abs(mom);
+              return (
+                <Link
+                  key={m.thesisId}
+                  href={`/thesis/${m.thesisId}`}
+                  className="flex items-center gap-3 rounded-lg border border-pm-border bg-white p-3 hover:bg-pm-bg-search transition-colors"
+                >
+                  <span
+                    className={`text-lg ${
+                      absMom < 0.005
+                        ? "text-pm-muted"
+                        : mom > 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                    }`}
+                  >
+                    {absMom < 0.005 ? "–" : mom > 0 ? "▲" : "▼"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-pm-text-primary">
+                      {m.thesisTitle}
+                    </p>
+                    <p className="text-xs text-pm-muted">
+                      {Math.round(m.probability * 100)}% · {m.thesisDirection}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 text-sm font-bold ${
+                      absMom < 0.005
+                        ? "text-pm-muted"
+                        : mom > 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                    }`}
+                  >
+                    {absMom < 0.005
+                      ? "—"
+                      : absMom < 0.05
+                        ? `${mom > 0 ? "+" : "-"}${(absMom * 100).toFixed(1)}pp`
+                        : `${mom > 0 ? "+" : "-"}${Math.round(absMom * 100)}pp`}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>

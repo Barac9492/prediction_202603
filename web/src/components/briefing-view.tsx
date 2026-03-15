@@ -157,7 +157,21 @@ export function BriefingView({
           <div className="space-y-2">
             {biggestMoves.map((t) => {
               const mom = t.momentum ?? 0;
-              const momPct = Math.round(Math.abs(mom) * 100);
+              const absMom = Math.abs(mom);
+
+              let momLabel: string;
+              let momColor: string;
+              if (absMom < 0.005) {
+                momLabel = "—";
+                momColor = "text-pm-muted";
+              } else if (absMom < 0.05) {
+                momLabel = `${mom > 0 ? "+" : "-"}${(absMom * 100).toFixed(1)}pp`;
+                momColor = mom > 0 ? "text-pm-green" : "text-pm-red";
+              } else {
+                momLabel = `${mom > 0 ? "+" : "-"}${Math.round(absMom * 100)}pp`;
+                momColor = mom > 0 ? "text-pm-green" : "text-pm-red";
+              }
+
               return (
                 <Link
                   key={t.thesisId}
@@ -165,9 +179,9 @@ export function BriefingView({
                   className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-pm-bg-search"
                 >
                   <span
-                    className={`text-lg ${mom > 0 ? "text-pm-green" : "text-pm-red"}`}
+                    className={`text-lg ${mom > 0 ? "text-pm-green" : mom < 0 ? "text-pm-red" : "text-pm-muted"}`}
                   >
-                    {mom > 0 ? "▲" : "▼"}
+                    {absMom < 0.005 ? "–" : mom > 0 ? "▲" : "▼"}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-pm-text-primary">
                     {t.title}
@@ -176,9 +190,9 @@ export function BriefingView({
                     {Math.round(t.probability * 100)}%
                   </span>
                   <span
-                    className={`shrink-0 text-xs font-bold ${mom > 0 ? "text-pm-green" : "text-pm-red"}`}
+                    className={`shrink-0 text-xs font-bold ${momColor}`}
                   >
-                    {mom > 0 ? "+" : "-"}{momPct}pp
+                    {momLabel}
                   </span>
                 </Link>
               );

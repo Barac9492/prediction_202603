@@ -296,12 +296,12 @@ export default async function LogPage({
                                                               No probability snapshots yet.
                                               </p>
                                               <p className="mt-2 text-xs text-pm-text-meta">
-                                                              Use{" "}
+                                                              Run the pipeline from the{" "}
                                                               <Link
-                                                                                  href="/predictions"
+                                                                                  href="/feed"
                                                                                   className="text-blue-400 hover:underline"
                                                                                 >
-                                                                                Compute Probabilities
+                                                                                Feed page
                                                               </Link>{" "}
                                                               to generate thesis probability snapshots.
                                               </p>

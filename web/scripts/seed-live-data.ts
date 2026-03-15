@@ -359,6 +359,45 @@ async function main() {
   }
   console.log(`  Created ${linkCount} entity-thesis connections\n`);
 
+  // ── Step 3b: Entity-entity connections ──────────────────────
+  console.log("--- Step 3b: Creating entity-entity connections ---");
+  const entityEntityLinks: Array<{ from: string; to: string; relation: string; reasoning: string }> = [
+    { from: "NVIDIA", to: "TSMC", relation: "DEPENDS_ON", reasoning: "NVIDIA relies on TSMC for GPU manufacturing at advanced nodes" },
+    { from: "NVIDIA", to: "AMD", relation: "COMPETES_WITH", reasoning: "AMD MI300X competes directly with NVIDIA H100/Blackwell for AI training" },
+    { from: "AMD", to: "NVIDIA", relation: "COMPETES_WITH", reasoning: "NVIDIA and AMD compete in the AI accelerator market" },
+    { from: "OpenAI", to: "Microsoft", relation: "DEPENDS_ON", reasoning: "Microsoft is OpenAI's primary investor and Azure cloud provider" },
+    { from: "OpenAI", to: "GPT-4", relation: "PRODUCES", reasoning: "OpenAI created and operates GPT-4" },
+    { from: "Anthropic", to: "Claude", relation: "PRODUCES", reasoning: "Anthropic develops the Claude model family" },
+    { from: "Google DeepMind", to: "Gemini", relation: "PRODUCES", reasoning: "Google DeepMind develops the Gemini model family" },
+    { from: "Meta AI", to: "Llama 3", relation: "PRODUCES", reasoning: "Meta AI develops and releases the Llama open-weight models" },
+    { from: "OpenAI", to: "Anthropic", relation: "COMPETES_WITH", reasoning: "OpenAI and Anthropic compete in frontier AI model market" },
+    { from: "AMD", to: "TSMC", relation: "DEPENDS_ON", reasoning: "AMD relies on TSMC for chip fabrication" },
+    { from: "NVIDIA", to: "H100", relation: "PRODUCES", reasoning: "NVIDIA manufactures the H100 data center GPU" },
+    { from: "NVIDIA", to: "Blackwell", relation: "PRODUCES", reasoning: "NVIDIA is developing the next-gen Blackwell GPU architecture" },
+    { from: "Mistral AI", to: "Hugging Face", relation: "DEPENDS_ON", reasoning: "Mistral distributes models through Hugging Face hub" },
+  ];
+
+  let eeCount = 0;
+  for (const link of entityEntityLinks) {
+    const fromEntity = entityMap.get(link.from);
+    const toEntity = entityMap.get(link.to);
+    if (!fromEntity || !toEntity) continue;
+
+    await db.insert(connections).values({
+      workspaceId,
+      fromType: "entity",
+      fromId: fromEntity.id,
+      toType: "entity",
+      toId: toEntity.id,
+      relation: link.relation,
+      confidence: 0.9,
+      weight: 1.0,
+      reasoning: link.reasoning,
+    });
+    eeCount++;
+  }
+  console.log(`  Created ${eeCount} entity-entity connections\n`);
+
   // ── Step 4: Fetch real RSS news ───────────────────────────────
   console.log("--- Step 4: Fetching live RSS news ---");
   let totalInserted = 0;
@@ -398,8 +437,30 @@ async function main() {
         allNewsItems.push(item);
         totalInserted++;
 
-        // Extract entities from this news item
+        // Classify overall sentiment and relevance for this news item
         const mentionedEntities = extractEntitiesFromText(item.title + " " + item.summary);
+        const matchedThesisIds: number[] = [];
+        let overallBullish = 0;
+        let overallBearish = 0;
+        for (let ti = 0; ti < createdTheses.length; ti++) {
+          const cls = classifyNewsForThesis(item.title, item.summary, ACTIVE_THESES[ti]);
+          if (cls.relevant) {
+            matchedThesisIds.push(createdTheses[ti].id);
+            if (cls.direction === "bullish") overallBullish++;
+            else if (cls.direction === "bearish") overallBearish++;
+          }
+        }
+        const overallSentiment = overallBullish > overallBearish ? "bullish" : overallBearish > overallBullish ? "bearish" : "neutral";
+        const aiRelevanceScore = Math.min(10, mentionedEntities.length * 2 + matchedThesisIds.length * 3);
+
+        await db.update(newsEvents)
+          .set({
+            sentiment: overallSentiment,
+            aiRelevance: aiRelevanceScore,
+            extractedEntities: mentionedEntities,
+            extractedThesisIds: matchedThesisIds,
+          })
+          .where(eq(newsEvents.id, inserted.id));
         for (const entityName of mentionedEntities) {
           const entity = entityMap.get(entityName);
           if (!entity) continue;
@@ -522,11 +583,16 @@ async function main() {
     const netEvidence = (bullish - bearish + neutral * 0.25) * EVIDENCE_SCALE;
     const probability = Math.max(0.05, Math.min(0.95, 1 / (1 + Math.exp(-netEvidence))));
 
-    // Create a few historical snapshots (simulate daily snapshots)
+    // Create historical snapshots with proper random walk
+    let prevProb = 0.5; // Start from 50% base
     for (let daysAgo = 14; daysAgo >= 0; daysAgo--) {
-      const jitter = (Math.random() - 0.5) * 0.08;
-      const historicalProb = Math.max(0.05, Math.min(0.95, probability + jitter * (daysAgo / 14)));
-      const prevProb = daysAgo === 14 ? 0.5 : historicalProb;
+      // Drift toward the computed probability + small daily noise
+      const drift = (probability - prevProb) * 0.12;
+      const noise = (Math.random() - 0.5) * 0.04;
+      // Occasional larger move (simulates news-driven shift)
+      const bigMove = Math.random() < 0.15 ? (Math.random() - 0.5) * 0.12 : 0;
+      const rawProb = prevProb + drift + noise + bigMove;
+      const historicalProb = Math.max(0.05, Math.min(0.95, rawProb));
       const momentum = historicalProb - prevProb;
 
       await db.insert(thesisProbabilitySnapshots).values({
@@ -541,6 +607,8 @@ async function main() {
         topNewsIds: [...newsIdSet].slice(0, 5),
         computedAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000),
       });
+
+      prevProb = historicalProb;
     }
 
     console.log(
