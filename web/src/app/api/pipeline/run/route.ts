@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { snapshotAllProbabilities } from "@/lib/db/probability";
 import { getAllWorkspaceIds } from "@/lib/db/workspace";
+import { createPipelineRun, completePipelineRun } from "@/lib/db/pipeline";
 import { ingestVault } from "@/lib/core/vault-ingest";
 import { fetchFeeds } from "@/lib/core/feed-fetch";
 import { ingestNews } from "@/lib/core/feed-ingest";
@@ -29,12 +30,17 @@ export async function POST(req: NextRequest) {
 
   for (const workspaceId of workspaceIds) {
     const steps: Record<string, unknown> = {};
+    let hasError = false;
+
+    // Record pipeline run start
+    const run = await createPipelineRun(workspaceId, "manual");
 
     // Step 0: Ingest Obsidian vault notes
     try {
       steps.vaultIngest = await ingestVault(workspaceId);
     } catch (err) {
       steps.vaultIngest = { error: String(err) };
+      hasError = true;
     }
 
     // Step 1: Fetch RSS feeds
@@ -42,6 +48,7 @@ export async function POST(req: NextRequest) {
       steps.feedFetch = await fetchFeeds(workspaceId);
     } catch (err) {
       steps.feedFetch = { error: String(err) };
+      hasError = true;
     }
 
     // Step 2: LLM ingest unprocessed events
@@ -49,6 +56,7 @@ export async function POST(req: NextRequest) {
       steps.feedIngest = await ingestNews(workspaceId, 20);
     } catch (err) {
       steps.feedIngest = { error: String(err) };
+      hasError = true;
     }
 
     // Step 3: Fetch Polymarket data
@@ -56,6 +64,7 @@ export async function POST(req: NextRequest) {
       steps.marketFetch = await fetchMarkets(workspaceId);
     } catch (err) {
       steps.marketFetch = { error: String(err) };
+      hasError = true;
     }
 
     // Step 4: Snapshot all probabilities
@@ -67,6 +76,7 @@ export async function POST(req: NextRequest) {
       };
     } catch (err) {
       steps.probabilitySnapshot = { error: String(err) };
+      hasError = true;
     }
 
     // Step 5: Signal fusion — detect entity co-occurrence clusters
@@ -76,6 +86,7 @@ export async function POST(req: NextRequest) {
       steps.signalFusion = fusionResult;
     } catch (err) {
       steps.signalFusion = { error: String(err) };
+      hasError = true;
     }
 
     // Step 5.5: Detect thesis interactions (REINFORCES/CONTRADICTS)
@@ -84,6 +95,7 @@ export async function POST(req: NextRequest) {
       steps.thesisInteractions = await detectThesisInteractions(workspaceId);
     } catch (err) {
       steps.thesisInteractions = { error: String(err) };
+      hasError = true;
     }
 
     // Step 6: Evaluate expired recommendations
@@ -95,6 +107,7 @@ export async function POST(req: NextRequest) {
       resolvedCount = evalResult.evaluated;
     } catch (err) {
       steps.recEvaluate = { error: String(err) };
+      hasError = true;
     }
 
     // Step 7: Generate new recommendations (if few active)
@@ -104,6 +117,7 @@ export async function POST(req: NextRequest) {
       steps.recGenerate = genResult;
     } catch (err) {
       steps.recGenerate = { error: String(err) };
+      hasError = true;
     }
 
     // Step 8: Refine backtest params (if any recs were resolved)
@@ -114,6 +128,7 @@ export async function POST(req: NextRequest) {
         steps.backtestRefine = refineResult;
       } catch (err) {
         steps.backtestRefine = { error: String(err) };
+        hasError = true;
       }
     }
 
@@ -123,7 +138,11 @@ export async function POST(req: NextRequest) {
       steps.thesisDeadlines = await checkThesisDeadlines(workspaceId);
     } catch (err) {
       steps.thesisDeadlines = { error: String(err) };
+      hasError = true;
     }
+
+    // Record pipeline run completion
+    await completePipelineRun(run.id, hasError ? "failed" : "completed", steps);
 
     allSteps[workspaceId] = steps;
   }

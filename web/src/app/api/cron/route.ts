@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { workspaces } from "@/lib/db/schema";
 import { snapshotAllProbabilities } from "@/lib/db/probability";
+import { createPipelineRun, completePipelineRun } from "@/lib/db/pipeline";
 import { fetchFeeds } from "@/lib/core/feed-fetch";
 import { ingestNews } from "@/lib/core/feed-ingest";
+import { fetchMarkets } from "@/lib/core/markets-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -11,13 +13,9 @@ export const maxDuration = 300;
 const CRON_SECRET = process.env.CRON_SECRET;
 
 /**
- * GET /api/cron — Automated ingestion pipeline.
- * Iterates all workspaces and runs: fetch RSS → ingest/process → snapshot probabilities.
- *
- * Protect with CRON_SECRET env var. Call via:
- *   curl https://yourapp.com/api/cron?secret=YOUR_SECRET
- *
- * Or wire to Vercel Cron / external scheduler.
+ * GET /api/cron — Full automated pipeline.
+ * Runs all 9 steps for every workspace: vault → RSS → ingest → markets →
+ * probabilities → fusion → interactions → recs → deadlines.
  */
 export async function GET(req: NextRequest) {
   // Auth check
@@ -33,33 +31,117 @@ export async function GET(req: NextRequest) {
 
   for (const workspace of allWorkspaces) {
     const workspaceId = workspace.id;
-    const log: Record<string, unknown>[] = [];
+    const steps: Record<string, unknown> = {};
+    let hasError = false;
+
+    // Record pipeline run start
+    const run = await createPipelineRun(workspaceId, "cron");
+
+    // Step 0: Ingest Obsidian vault notes
+    try {
+      const { ingestVault } = await import("@/lib/core/vault-ingest");
+      steps.vaultIngest = await ingestVault(workspaceId);
+    } catch (err) {
+      steps.vaultIngest = { error: String(err) };
+      hasError = true;
+    }
 
     // Step 1: Fetch RSS feeds
     try {
-      const fetchData = await fetchFeeds(workspaceId);
-      log.push({ step: "fetch", ...fetchData });
+      steps.feedFetch = await fetchFeeds(workspaceId);
     } catch (err) {
-      log.push({ step: "fetch", error: String(err) });
+      steps.feedFetch = { error: String(err) };
+      hasError = true;
     }
 
-    // Step 2: Process unprocessed events (up to 20 per run)
+    // Step 2: LLM ingest unprocessed events
     try {
-      const ingestData = await ingestNews(workspaceId, 20);
-      log.push({ step: "ingest", ...ingestData });
+      steps.feedIngest = await ingestNews(workspaceId, 20);
     } catch (err) {
-      log.push({ step: "ingest", error: String(err) });
+      steps.feedIngest = { error: String(err) };
+      hasError = true;
     }
 
-    // Step 3: Snapshot probabilities
+    // Step 3: Fetch Polymarket data
+    try {
+      steps.marketFetch = await fetchMarkets(workspaceId);
+    } catch (err) {
+      steps.marketFetch = { error: String(err) };
+      hasError = true;
+    }
+
+    // Step 4: Snapshot all probabilities
     try {
       const snapshots = await snapshotAllProbabilities(workspaceId);
-      log.push({ step: "probabilities", computed: snapshots.length });
+      steps.probabilitySnapshot = { count: snapshots.length };
     } catch (err) {
-      log.push({ step: "probabilities", error: String(err) });
+      steps.probabilitySnapshot = { error: String(err) };
+      hasError = true;
     }
 
-    results.push({ workspaceId, pipeline: log });
+    // Step 5: Signal fusion — detect entity co-occurrence clusters
+    try {
+      const { detectClusters } = await import("@/lib/analysis/signal-fusion");
+      steps.signalFusion = await detectClusters(workspaceId, 7);
+    } catch (err) {
+      steps.signalFusion = { error: String(err) };
+      hasError = true;
+    }
+
+    // Step 6: Detect thesis interactions (REINFORCES/CONTRADICTS)
+    try {
+      const { detectThesisInteractions } = await import("@/lib/analysis/thesis-interactions");
+      steps.thesisInteractions = await detectThesisInteractions(workspaceId);
+    } catch (err) {
+      steps.thesisInteractions = { error: String(err) };
+      hasError = true;
+    }
+
+    // Step 7: Evaluate expired recommendations + refine backtest params
+    let resolvedCount = 0;
+    try {
+      const { evaluateExpiredRecs } = await import("@/lib/recommendations/evaluator");
+      const evalResult = await evaluateExpiredRecs(workspaceId);
+      steps.recEvaluate = evalResult;
+      resolvedCount = evalResult.evaluated;
+    } catch (err) {
+      steps.recEvaluate = { error: String(err) };
+      hasError = true;
+    }
+
+    // Step 8: Generate new recommendations
+    try {
+      const { generateRecommendations } = await import("@/lib/recommendations/generator");
+      steps.recGenerate = await generateRecommendations(workspaceId);
+    } catch (err) {
+      steps.recGenerate = { error: String(err) };
+      hasError = true;
+    }
+
+    // Step 8.5: Refine backtest params (if any recs were resolved)
+    if (resolvedCount > 0) {
+      try {
+        const { refineParams } = await import("@/lib/backtest/refiner");
+        steps.backtestRefine = await refineParams(workspaceId);
+      } catch (err) {
+        steps.backtestRefine = { error: String(err) };
+        hasError = true;
+      }
+    }
+
+    // Step 9: Check thesis deadlines
+    try {
+      const { checkThesisDeadlines } = await import("@/lib/analysis/thesis-lifecycle");
+      steps.thesisDeadlines = await checkThesisDeadlines(workspaceId);
+    } catch (err) {
+      steps.thesisDeadlines = { error: String(err) };
+      hasError = true;
+    }
+
+    // Record pipeline run completion
+    await completePipelineRun(run.id, hasError ? "failed" : "completed", steps);
+
+    results.push({ workspaceId, runId: run.id, pipeline: steps });
   }
 
   return NextResponse.json({

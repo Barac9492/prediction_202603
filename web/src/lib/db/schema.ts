@@ -323,6 +323,25 @@ export const priceSnapshots = pgTable(
   ]
 );
 
+// — pipeline runs ——————————————————————————————————————————
+
+export const pipelineRuns = pgTable(
+  "pipeline_runs",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+    status: text("status").notNull().default("running"), // running, completed, failed
+    steps: jsonb("steps").$type<Record<string, unknown>>().default({}),
+    triggeredBy: text("triggered_by").notNull().default("manual"), // cron, manual
+  },
+  (t) => [
+    index("pipeline_runs_ws_idx").on(t.workspaceId),
+    index("pipeline_runs_started_idx").on(t.startedAt),
+  ]
+);
+
 // — probability tracking ——————————————————————————————————————————
 export const thesisProbabilitySnapshots = pgTable(
   "thesis_probability_snapshots",

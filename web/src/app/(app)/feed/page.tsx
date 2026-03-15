@@ -23,10 +23,25 @@ interface NewsEvent {
     extractedThesisIds: number[];
 }
 
+interface PipelineRun {
+    id: number;
+    startedAt: string;
+    completedAt: string | null;
+    status: string;
+    steps: Record<string, unknown>;
+    triggeredBy: string;
+}
+
 const SENTIMENT_STYLES: Record<string, string> = {
     bullish: "text-green-700 bg-green-50 border-green-200",
     bearish: "text-red-700 bg-red-50 border-red-200",
     neutral: "text-yellow-700 bg-yellow-50 border-yellow-200",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+    completed: "bg-green-100 text-green-800",
+    failed: "bg-red-100 text-red-800",
+    running: "bg-blue-100 text-blue-800",
 };
 
 function RelevanceDots({ score }: { score: number | null }) {
@@ -40,16 +55,58 @@ function RelevanceDots({ score }: { score: number | null }) {
         );
 }
 
+function StepSummary({ steps }: { steps: Record<string, unknown> }) {
+    const stepNames: Record<string, string> = {
+        vaultIngest: "Vault",
+        feedFetch: "RSS Fetch",
+        feedIngest: "LLM Ingest",
+        marketFetch: "Markets",
+        probabilitySnapshot: "Probabilities",
+        signalFusion: "Clusters",
+        thesisInteractions: "Interactions",
+        recEvaluate: "Eval Recs",
+        recGenerate: "Gen Recs",
+        backtestRefine: "Backtest",
+        thesisDeadlines: "Deadlines",
+    };
+
+    return (
+        <div className="flex flex-wrap gap-1">
+            {Object.entries(steps).map(([key, value]) => {
+                const hasError = value && typeof value === "object" && "error" in (value as Record<string, unknown>);
+                return (
+                    <span
+                        key={key}
+                        className={`text-xs px-1.5 py-0.5 rounded ${
+                            hasError ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                        }`}
+                        title={hasError ? String((value as Record<string, unknown>).error) : "OK"}
+                    >
+                        {stepNames[key] || key}
+                    </span>
+                );
+            })}
+        </div>
+    );
+}
+
+function durationStr(start: string, end: string | null): string {
+    if (!end) return "running...";
+    const ms = new Date(end).getTime() - new Date(start).getTime();
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+}
+
 export default function FeedPage() {
     const [events, setEvents] = useState<NewsEvent[]>([]);
     const [unprocessedCount, setUnprocessedCount] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [fetching, setFetching] = useState(false);
+    const [fetchingNews, setFetchingNews] = useState(false);
     const [fetchResult, setFetchResult] = useState<string | null>(null);
-    const [processing, setProcessing] = useState(false);
-    const [processResult, setProcessResult] = useState<string | null>(null);
     const [runningPipeline, setRunningPipeline] = useState(false);
     const [pipelineResult, setPipelineResult] = useState<string | null>(null);
+    const [recentRuns, setRecentRuns] = useState<PipelineRun[]>([]);
+    const [loadingRuns, setLoadingRuns] = useState(true);
 
     const loadFeed = useCallback(async () => {
           try {
@@ -61,38 +118,48 @@ export default function FeedPage() {
           finally { setLoading(false); }
     }, []);
 
-    useEffect(() => { loadFeed(); }, [loadFeed]);
+    const loadPipelineStatus = useCallback(async () => {
+          try {
+                  const res = await fetch("/api/pipeline/status");
+                  const data = await res.json();
+                  setRecentRuns(data.recentRuns || []);
+          } catch (e) { console.error(e); }
+          finally { setLoadingRuns(false); }
+    }, []);
+
+    useEffect(() => { loadFeed(); loadPipelineStatus(); }, [loadFeed, loadPipelineStatus]);
 
     // Auto-refresh every 5 minutes
     useEffect(() => {
-          const id = setInterval(() => { loadFeed(); }, 300_000);
+          const id = setInterval(() => { loadFeed(); loadPipelineStatus(); }, 300_000);
           return () => clearInterval(id);
-    }, [loadFeed]);
+    }, [loadFeed, loadPipelineStatus]);
 
-    async function handleFetch() {
-          setFetching(true); setFetchResult(null);
+    async function handleFetchNews() {
+          setFetchingNews(true);
+          setFetchResult(null);
           try {
-                  const res = await fetch("/api/feed/fetch", { method: "POST" });
-                  const data = await res.json();
-                  setFetchResult(`Fetched ${data.total} articles — ${data.inserted} new, ${data.skipped} duplicates.`);
-                  await loadFeed();
-          } catch { setFetchResult("Error fetching RSS feeds."); }
-          finally { setFetching(false); }
-    }
+                  // Step 1: Fetch RSS
+                  const fetchRes = await fetch("/api/feed/fetch", { method: "POST" });
+                  const fetchData = await fetchRes.json();
+                  const newArticles = fetchData.inserted ?? 0;
 
-    async function handleIngest() {
-          setProcessing(true); setProcessResult(null);
-          try {
-                  const res = await fetch("/api/feed/ingest", {
+                  // Step 2: Process/ingest unprocessed events
+                  const ingestRes = await fetch("/api/feed/ingest", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ limit: 10 }),
+                            body: JSON.stringify({ limit: 20 }),
                   });
-                  const data = await res.json();
-                  setProcessResult(`Processed ${data.processed} events — connections added to graph.`);
+                  const ingestData = await ingestRes.json();
+                  const processed = ingestData.processed ?? 0;
+
+                  setFetchResult(`Fetched ${newArticles} new articles, processed ${processed} events.`);
                   await loadFeed();
-          } catch { setProcessResult("Error processing events."); }
-          finally { setProcessing(false); }
+          } catch {
+                  setFetchResult("Error fetching news.");
+          } finally {
+                  setFetchingNews(false);
+          }
     }
 
     async function handleRunPipeline() {
@@ -104,17 +171,9 @@ export default function FeedPage() {
                   if (!data.ok) {
                             setPipelineResult("Pipeline failed.");
                   } else {
-                            const steps = (data.pipeline as Array<Record<string, unknown>>) || [];
-                            const fetchStep = steps.find((s) => s.step === "fetch");
-                            const ingestStep = steps.find((s) => s.step === "ingest");
-                            const probStep = steps.find((s) => s.step === "probabilities");
-                            const parts: string[] = [];
-                            if (fetchStep && !fetchStep.error) parts.push(`${fetchStep.inserted ?? 0} new articles`);
-                            if (ingestStep && !ingestStep.error) parts.push(`${ingestStep.processed ?? 0} processed`);
-                            if (probStep && !probStep.error) parts.push(`${probStep.updated ?? probStep.probabilitiesUpdated ?? 0} probabilities updated`);
-                            setPipelineResult(`Pipeline complete: ${parts.join(", ") || "done"}.`);
+                            setPipelineResult("Pipeline completed successfully.");
                   }
-                  await loadFeed();
+                  await Promise.all([loadFeed(), loadPipelineStatus()]);
           } catch {
                   setPipelineResult("Error running pipeline.");
           } finally {
@@ -122,31 +181,85 @@ export default function FeedPage() {
           }
     }
 
+    const lastRun = recentRuns[0] ?? null;
+
     return (
           <div className="space-y-6">
                 <div className="flex items-start justify-between">
                         <div>
                                   <h1 className="text-2xl font-bold">News Feed</h1>
-                                  <p className="text-sm text-pm-muted mt-1">AI-relevant news from RSS feeds. Fetch → then Process to extract graph connections.</p>
+                                  <p className="text-sm text-pm-muted mt-1">Pipeline runs automatically daily. Fetch news anytime or run the full pipeline manually.</p>
                         </div>
                         <div className="flex flex-col items-end gap-2">
                                   <div className="flex gap-2">
-                                              <button onClick={handleRunPipeline} disabled={runningPipeline || fetching || processing} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40 transition-colors">
+                                              <button onClick={handleFetchNews} disabled={fetchingNews || runningPipeline} className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+                                                {fetchingNews ? "Fetching..." : "Fetch News"}
+                                              </button>
+                                              <button onClick={handleRunPipeline} disabled={runningPipeline || fetchingNews} className="rounded-md bg-pm-text-primary text-white px-4 py-2 text-sm font-medium hover:bg-gray-700 disabled:opacity-40 transition-colors">
                                                 {runningPipeline ? "Running pipeline..." : "Run Full Pipeline"}
                                               </button>
-                                              <button onClick={handleFetch} disabled={fetching || runningPipeline} className="rounded-md bg-pm-text-primary text-white px-4 py-2 text-sm font-medium hover:bg-gray-700 disabled:opacity-40 transition-colors">
-                                                {fetching ? "Fetching RSS..." : "Fetch RSS"}
-                                              </button>
-                                              <button onClick={handleIngest} disabled={processing || unprocessedCount === 0 || runningPipeline} className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium hover:bg-blue-600 disabled:opacity-40 transition-colors">
-                                                {processing ? "Processing..." : `Process ${unprocessedCount} Unprocessed`}
-                                              </button>
                                   </div>
+                          {fetchResult && <span className="text-xs text-blue-600">{fetchResult}</span>}
                           {pipelineResult && <span className="text-xs text-emerald-600">{pipelineResult}</span>}
-                          {fetchResult && <span className="text-xs text-pm-muted">{fetchResult}</span>}
-                          {processResult && <span className="text-xs text-pm-muted">{processResult}</span>}
                         </div>
                 </div>
 
+                {/* Pipeline Status */}
+                <div className="rounded-lg border border-pm-border bg-white p-4">
+                        <h2 className="text-sm font-semibold text-pm-text-primary mb-3">Pipeline Status</h2>
+                        {loadingRuns ? (
+                            <p className="text-sm text-pm-muted">Loading...</p>
+                        ) : lastRun ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3">
+                                    <span className={`inline-block h-2.5 w-2.5 rounded-full ${
+                                        lastRun.status === "completed" ? "bg-green-500" :
+                                        lastRun.status === "failed" ? "bg-red-500" : "bg-blue-500"
+                                    }`} />
+                                    <span className="text-sm text-pm-text-primary">
+                                        Last run: {timeAgo(lastRun.startedAt)}
+                                    </span>
+                                    <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_STYLES[lastRun.status] || ""}`}>
+                                        {lastRun.status}
+                                    </span>
+                                    <span className="text-xs text-pm-muted">
+                                        ({lastRun.triggeredBy} · {durationStr(lastRun.startedAt, lastRun.completedAt)})
+                                    </span>
+                                </div>
+                                {lastRun.steps && Object.keys(lastRun.steps).length > 0 && (
+                                    <StepSummary steps={lastRun.steps} />
+                                )}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-pm-muted">No pipeline runs yet. Click &quot;Run Pipeline Now&quot; to start.</p>
+                        )}
+                </div>
+
+                {/* Run History */}
+                {recentRuns.length > 1 && (
+                    <div className="rounded-lg border border-pm-border bg-white p-4">
+                        <h2 className="text-sm font-semibold text-pm-text-primary mb-3">Recent Runs</h2>
+                        <div className="space-y-2">
+                            {recentRuns.slice(1).map((run) => (
+                                <div key={run.id} className="flex items-center gap-3 text-sm">
+                                    <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${
+                                        run.status === "completed" ? "bg-green-500" :
+                                        run.status === "failed" ? "bg-red-500" : "bg-blue-500"
+                                    }`} />
+                                    <span className="text-pm-muted">{timeAgo(run.startedAt)}</span>
+                                    <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_STYLES[run.status] || ""}`}>
+                                        {run.status}
+                                    </span>
+                                    <span className="text-xs text-pm-muted">
+                                        {run.triggeredBy} · {durationStr(run.startedAt, run.completedAt)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Stats */}
                 <div className="flex gap-4 text-sm">
                         <div className="rounded-lg border border-pm-border bg-white px-4 py-3">
                                   <div className="text-2xl font-bold text-blue-600">{unprocessedCount}</div>
@@ -166,12 +279,13 @@ export default function FeedPage() {
                         </div>
                 </div>
 
+                {/* News Feed */}
             {loading ? (
                     <div className="text-pm-text-secondary text-sm">Loading feed...</div>
                   ) : events.length === 0 ? (
                     <div className="rounded-lg border border-pm-border p-8 text-center text-pm-text-secondary">
                               <p className="text-lg mb-2">No news events yet</p>
-                              <p className="text-sm">Click <strong>Fetch RSS</strong> to pull in the latest AI news.</p>
+                              <p className="text-sm">Click <strong>Run Pipeline Now</strong> to fetch and process the latest AI news.</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
