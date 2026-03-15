@@ -10,6 +10,7 @@ import {
 import { getCurrentProbabilities } from "@/lib/db/probability";
 import { getWorkspaceId } from "@/lib/db/workspace";
 import { EntityTimelineChart } from "./timeline-chart";
+import { timeAgo, shortDate } from "@/lib/format-time";
 
 const CATEGORY_COLORS: Record<string, string> = {
   company: "bg-blue-100 text-blue-800",
@@ -182,7 +183,7 @@ export default async function EntityDetailPage({
                     {n.source}
                     {n.publishedAt && (
                       <span className="ml-2">
-                        {new Date(n.publishedAt).toLocaleDateString()}
+                        {timeAgo(n.publishedAt)}
                       </span>
                     )}
                   </p>
@@ -243,7 +244,7 @@ export default async function EntityDetailPage({
                       </div>
                     </td>
                     <td className="px-4 py-2 text-xs text-gray-400">
-                      {new Date(o.observedAt).toLocaleDateString()}
+                      {shortDate(o.observedAt)}
                     </td>
                   </tr>
                 ))}

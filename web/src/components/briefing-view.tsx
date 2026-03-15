@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { timeAgo } from "@/lib/format-time";
 
 type ExpiringRec = {
   id: number;
@@ -241,6 +242,11 @@ export function BriefingView({
                       {c.newsSource && (
                         <span className="shrink-0 text-pm-muted">
                           {c.newsSource}
+                        </span>
+                      )}
+                      {c.newsPublishedAt && (
+                        <span className="shrink-0 text-pm-muted">
+                          {timeAgo(c.newsPublishedAt)}
                         </span>
                       )}
                     </div>

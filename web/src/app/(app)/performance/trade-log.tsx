@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { shortDate } from "@/lib/format-time";
 
 type TradeRec = {
   id: number;
@@ -162,11 +163,11 @@ export function TradeLog({ trades }: { trades: TradeRec[] }) {
                         : "—"}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-pm-muted">
-                      {new Date(rec.createdAt).toLocaleDateString()}
+                      {shortDate(rec.createdAt)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-pm-muted">
                       {rec.resolvedAt
-                        ? new Date(rec.resolvedAt).toLocaleDateString()
+                        ? shortDate(rec.resolvedAt)
                         : "—"}
                     </td>
                     <td className="px-3 py-2 tabular-nums text-pm-muted">
@@ -195,7 +196,7 @@ export function TradeLog({ trades }: { trades: TradeRec[] }) {
                                 Entry Rationale
                               </span>
                               <span className="text-xs text-pm-muted">
-                                {new Date(rec.createdAt).toLocaleDateString()}
+                                {shortDate(rec.createdAt)}
                               </span>
                             </div>
                             <p className="text-sm text-pm-text-primary">
@@ -218,9 +219,7 @@ export function TradeLog({ trades }: { trades: TradeRec[] }) {
                               </span>
                               {rec.resolvedAt && (
                                 <span className="text-xs text-pm-muted">
-                                  {new Date(
-                                    rec.resolvedAt,
-                                  ).toLocaleDateString()}
+                                  {shortDate(rec.resolvedAt)}
                                 </span>
                               )}
                             </div>

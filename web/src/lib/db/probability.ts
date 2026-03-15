@@ -321,6 +321,16 @@ export async function getCurrentProbabilities(workspaceId: string): Promise<Arra
   return out;
 }
 
+export async function getLastPipelineRun(workspaceId: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ computedAt: thesisProbabilitySnapshots.computedAt })
+    .from(thesisProbabilitySnapshots)
+    .where(eq(thesisProbabilitySnapshots.workspaceId, workspaceId))
+    .orderBy(desc(thesisProbabilitySnapshots.computedAt))
+    .limit(1);
+  return row?.computedAt ?? null;
+}
+
 export async function getBatchProbabilityHistory(
   workspaceId: string,
   thesisIds: number[],

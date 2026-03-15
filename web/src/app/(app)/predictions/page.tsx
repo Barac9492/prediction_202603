@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { listPredictions, listStalePredictions } from "@/lib/db/queries";
+import { timeAgo, shortDate } from "@/lib/format-time";
 import { listTheses } from "@/lib/db/graph-queries";
 import { db } from "@/lib/db/index";
 import { thesisProbabilitySnapshots, theses as thesesTable } from "@/lib/db/schema";
@@ -175,7 +176,7 @@ export default async function LogPage({
                                                                             <td className="px-4 py-2 text-pm-text-secondary">{p.id}</td>
                                                                             <td className="px-4 py-2 text-pm-text-secondary">
                                                                               {p.createdAt
-                                                                                                          ? new Date(p.createdAt).toLocaleDateString()
+                                                                                                          ? shortDate(p.createdAt)
                                                                                                           : "\u2014"}
                                                                             </td>
                                                                             <td className="px-4 py-2">
@@ -275,7 +276,7 @@ export default async function LogPage({
                                                                                   </td>
                                                                                 <td className="px-4 py-2 text-pm-text-secondary text-xs">
                                                                                   {t.resolvedAt
-                                                                                                                ? new Date(t.resolvedAt).toLocaleDateString()
+                                                                                                                ? shortDate(t.resolvedAt)
                                                                                                                 : "\u2014"}
                                                                                   </td>
                                                         </tr>
@@ -326,7 +327,7 @@ export default async function LogPage({
                                                                               className="border-b border-pm-border hover:bg-pm-bg-search"
                                                                             >
                                                                             <td className="px-4 py-2 text-pm-text-secondary text-xs">
-                                                                              {new Date(s.computedAt).toLocaleString()}
+                                                                              {timeAgo(s.computedAt)}
                                                                             </td>
                                                                             <td className="px-4 py-2">
                                                                                                     <Link

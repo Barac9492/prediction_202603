@@ -1,4 +1,4 @@
-import { getCurrentProbabilities } from "@/lib/db/probability";
+import { getCurrentProbabilities, getLastPipelineRun } from "@/lib/db/probability";
 import {
   getExpiringSoonRecommendations,
   getContradictingEvidence,
@@ -6,16 +6,20 @@ import {
 import { BriefingView } from "@/components/briefing-view";
 import { BriefingNarrative } from "@/components/briefing-narrative";
 import { getWorkspaceId } from "@/lib/db/workspace";
+import { DataFreshness } from "@/components/data-freshness";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 export const dynamic = "force-dynamic";
 
 export default async function BriefingPage() {
   const workspaceId = await getWorkspaceId();
 
-  const [theses, expiring] = await Promise.all([
+  const [theses, expiring, lastRun] = await Promise.all([
     getCurrentProbabilities(workspaceId),
     getExpiringSoonRecommendations(workspaceId, 7),
+    getLastPipelineRun(workspaceId),
   ]);
+  const lastRunIso = lastRun?.toISOString() ?? null;
 
   // Biggest moves: top 10 by absolute momentum
   const biggestMoves = [...theses]
@@ -55,14 +59,18 @@ export default async function BriefingPage() {
     }));
 
   return (
+    <AutoRefresh>
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-pm-text-primary">
-          Morning Briefing
-        </h1>
-        <p className="mt-1 text-sm text-pm-muted">
-          Your daily actionable summary.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-pm-text-primary">
+            Morning Briefing
+          </h1>
+          <p className="mt-1 text-sm text-pm-muted">
+            Your daily actionable summary.
+          </p>
+        </div>
+        <DataFreshness lastUpdated={lastRunIso} />
       </div>
       <BriefingNarrative />
       <BriefingView
@@ -71,5 +79,6 @@ export default async function BriefingPage() {
         contradictingTheses={contradictingTheses}
       />
     </div>
+    </AutoRefresh>
   );
 }

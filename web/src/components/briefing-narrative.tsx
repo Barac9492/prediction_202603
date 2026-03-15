@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { timeAgo } from "@/lib/format-time";
 
 export function BriefingNarrative() {
   const [narrative, setNarrative] = useState<string | null>(null);
@@ -48,7 +49,7 @@ export function BriefingNarrative() {
           </div>
           {generatedAt && (
             <p className="mt-3 text-xs text-pm-text-meta">
-              Generated {new Date(generatedAt).toLocaleString()}
+              Generated {timeAgo(generatedAt)}
             </p>
           )}
         </div>

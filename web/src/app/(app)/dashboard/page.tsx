@@ -6,9 +6,12 @@ import {
   getProbabilityMovers,
   getContradictingEvidence,
 } from "@/lib/db/graph-queries";
-import { getCurrentProbabilities } from "@/lib/db/probability";
+import { getCurrentProbabilities, getLastPipelineRun } from "@/lib/db/probability";
 import Link from "next/link";
 import { getWorkspaceId } from "@/lib/db/workspace";
+import { timeAgo } from "@/lib/format-time";
+import { DataFreshness } from "@/components/data-freshness";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 const PATTERN_STYLES: Record<string, string> = {
   convergence: "bg-green-50 text-green-800 border-green-200",
@@ -30,14 +33,18 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default async function DashboardPage() {
   const workspaceId = await getWorkspaceId();
 
-  const [activeClusters, recentObs, uncoveredEntities, recentNews, movers, currentProbs] = await Promise.all([
+  const [activeClusters, recentObs, uncoveredEntities, recentNews, movers, currentProbs, lastRun] = await Promise.all([
     listSignalClusters(workspaceId, "active"),
     getRecentEntityObservations(workspaceId, 20),
     getUncoveredEntities(workspaceId),
     getRecentNews(workspaceId, 5),
     getProbabilityMovers(workspaceId, 5),
     getCurrentProbabilities(workspaceId),
+    getLastPipelineRun(workspaceId),
   ]);
+
+  const lastRunIso = lastRun?.toISOString() ?? null;
+  const isStaleData = lastRun ? Date.now() - lastRun.getTime() > 24 * 60 * 60 * 1000 : true;
 
   // Find high-conviction theses and check for contradicting evidence
   const highConviction = currentProbs.filter(
@@ -62,13 +69,26 @@ export default async function DashboardPage() {
   );
 
   return (
+    <AutoRefresh>
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-pm-text-primary">Dashboard</h1>
-        <p className="text-sm text-pm-muted mt-1">
-          Detected patterns, entity signals, and coverage gaps.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-pm-text-primary">Dashboard</h1>
+          <p className="text-sm text-pm-muted mt-1">
+            Detected patterns, entity signals, and coverage gaps.
+          </p>
+        </div>
+        <DataFreshness lastUpdated={lastRunIso} />
       </div>
+
+      {isStaleData && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          No pipeline run in the last 24 hours. Data may be outdated.{" "}
+          <Link href="/feed" className="font-medium underline hover:text-red-900">
+            Run pipeline
+          </Link>
+        </div>
+      )}
 
       {/* Contradiction Alert */}
       {contradictedTheses.length > 0 && (
@@ -179,8 +199,7 @@ export default async function DashboardPage() {
                     {((cluster.thesisIds as number[]) || []).length} theses
                   </span>
                   <span>
-                    Detected{" "}
-                    {new Date(cluster.detectedAt).toLocaleDateString()}
+                    Detected {timeAgo(cluster.detectedAt)}
                   </span>
                 </div>
               </div>
@@ -222,7 +241,7 @@ export default async function DashboardPage() {
                     {news.source}
                     {news.publishedAt && (
                       <span className="ml-2">
-                        {new Date(news.publishedAt).toLocaleDateString()}
+                        {timeAgo(news.publishedAt)}
                       </span>
                     )}
                   </p>
@@ -381,9 +400,7 @@ export default async function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-4 py-2 text-xs text-gray-400">
-                      {new Date(
-                        row.observation.observedAt
-                      ).toLocaleDateString()}
+                      {timeAgo(row.observation.observedAt)}
                     </td>
                   </tr>
                 ))}
@@ -435,5 +452,6 @@ export default async function DashboardPage() {
         )}
       </section>
     </div>
+    </AutoRefresh>
   );
 }

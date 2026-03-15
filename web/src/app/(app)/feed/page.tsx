@@ -1,6 +1,7 @@
 "use client";
 export const dynamic = "force-dynamic";
 import { useState, useEffect, useCallback } from "react";
+import { timeAgo } from "@/lib/format-time";
 
 function decodeHtml(html: string): string {
     const txt = document.createElement("textarea");
@@ -61,6 +62,12 @@ export default function FeedPage() {
     }, []);
 
     useEffect(() => { loadFeed(); }, [loadFeed]);
+
+    // Auto-refresh every 5 minutes
+    useEffect(() => {
+          const id = setInterval(() => { loadFeed(); }, 300_000);
+          return () => clearInterval(id);
+    }, [loadFeed]);
 
     async function handleFetch() {
           setFetching(true); setFetchResult(null);
@@ -202,7 +209,7 @@ export default function FeedPage() {
                                                                 <div className="flex flex-col items-end gap-1.5 shrink-0">
                                                                                   <RelevanceDots score={event.aiRelevance} />
                                                                                   <span className="text-xs text-pm-text-meta">
-                                                                                    {event.publishedAt ? new Date(event.publishedAt).toLocaleDateString() : new Date(event.ingestedAt).toLocaleDateString()}
+                                                                                    {timeAgo(event.publishedAt || event.ingestedAt)}
                                                                                     </span>
                                                                 </div>
                                                 </div>

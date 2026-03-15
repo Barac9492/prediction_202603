@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import { OverdueThesesBanner } from "@/components/overdue-theses-banner";
+import { shortDate } from "@/lib/format-time";
 
 interface Thesis {
   id: number;
@@ -327,7 +328,7 @@ export default function ThesisPage() {
                     </div>
                     <h3 className="font-medium text-sm">{t.title}</h3>
                     <p className="text-xs text-pm-muted mt-1">{t.description}</p>
-                    <p className="text-xs text-pm-text-secondary mt-1.5">Created {new Date(t.createdAt).toLocaleDateString()}</p>
+                    <p className="text-xs text-pm-text-secondary mt-1.5">Created {shortDate(t.createdAt)}</p>
 
                     {extras?.interactions && extras.interactions.length > 0 && (
                       <div className="mt-2 pt-2 border-t border-pm-border">

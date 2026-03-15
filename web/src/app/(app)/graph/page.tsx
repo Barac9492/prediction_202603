@@ -3,6 +3,7 @@ import { BackfillButton } from "@/components/backfill-button";
 import { EntityNetworkPanel } from "@/components/entity-network-panel";
 import { GraphVisualization } from "@/components/graph-visualization";
 import { getWorkspaceId } from "@/lib/db/workspace";
+import { timeAgo } from "@/lib/format-time";
 
 const RELATION_STYLES: Record<string, string> = {
   SUPPORTS: "text-green-700 bg-green-50 border-green-200",
@@ -347,7 +348,7 @@ export default async function GraphPage() {
                             )}
                             {conn.news.publishedAt && (
                               <span className="text-xs text-gray-400">
-                                {new Date(conn.news.publishedAt).toLocaleDateString()}
+                                {timeAgo(conn.news.publishedAt)}
                               </span>
                             )}
                           </div>

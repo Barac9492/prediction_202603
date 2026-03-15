@@ -13,6 +13,9 @@ import { getProbabilityHistory } from "@/lib/db/probability";
 import { ThesisDetail } from "@/components/thesis-detail";
 import { ProbabilityExplainer } from "@/components/probability-explainer";
 import { getWorkspaceId } from "@/lib/db/workspace";
+import { timeAgo, shortDate } from "@/lib/format-time";
+import { DataFreshness } from "@/components/data-freshness";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 export default async function ThesisDetailPage({
   params,
@@ -78,6 +81,7 @@ export default async function ThesisDetailPage({
   const latestSnapshot = history.length > 0 ? history[history.length - 1] : null;
 
   return (
+    <AutoRefresh>
     <div className="space-y-8">
       {/* Header */}
       <div>
@@ -108,7 +112,7 @@ export default async function ThesisDetailPage({
         <p className="mt-1 text-sm text-pm-text-secondary">
           Created{" "}
           {thesis.createdAt
-            ? new Date(thesis.createdAt).toLocaleDateString()
+            ? shortDate(thesis.createdAt)
             : "—"}
           {(thesis.tags as string[] | null)?.length
             ? ` · ${(thesis.tags as string[]).join(", ")}`
@@ -138,6 +142,11 @@ export default async function ThesisDetailPage({
               ? `${(latestSnapshot.probability * 100).toFixed(1)}%`
               : "—"}
           </p>
+          {latestSnapshot && (
+            <p className="text-[11px] text-pm-muted">
+              as of {timeAgo(latestSnapshot.computedAt)}
+            </p>
+          )}
         </div>
         <div className="rounded-lg border border-pm-border p-3">
           <p className="text-xs text-pm-text-secondary">Momentum</p>
@@ -231,7 +240,7 @@ export default async function ThesisDetailPage({
                     )}
                     {ne.publishedAt && (
                       <span className="text-xs text-pm-text-meta">
-                        {new Date(ne.publishedAt).toLocaleDateString()}
+                        {timeAgo(ne.publishedAt)}
                       </span>
                     )}
                   </div>
@@ -333,7 +342,7 @@ export default async function ThesisDetailPage({
                 </span>
                 <span className="text-xs text-pm-text-meta">
                   {rec.deadline
-                    ? `Deadline: ${new Date(rec.deadline).toLocaleDateString()}`
+                    ? `Deadline: ${shortDate(rec.deadline)}`
                     : ""}
                 </span>
                 <span
@@ -355,5 +364,6 @@ export default async function ThesisDetailPage({
         </div>
       )}
     </div>
+    </AutoRefresh>
   );
 }

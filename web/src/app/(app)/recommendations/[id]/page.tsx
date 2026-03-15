@@ -11,6 +11,7 @@ import {
 import { getProbabilityHistory } from "@/lib/db/probability";
 import { PriceDisplay } from "@/components/price-display";
 import { RecProbabilityChart } from "./probability-chart";
+import { timeAgo, shortDate } from "@/lib/format-time";
 
 export const dynamic = "force-dynamic";
 
@@ -119,13 +120,13 @@ export default async function RecommendationDetailPage({
         <div className="text-right">
           <div className="text-xs text-pm-text-meta">Created</div>
           <div className="text-sm text-pm-text-primary">
-            {new Date(rec.createdAt).toLocaleDateString()}
+            {shortDate(rec.createdAt)}
           </div>
           {isResolved && rec.resolvedAt && (
             <>
               <div className="mt-2 text-xs text-pm-text-meta">Resolved</div>
               <div className="text-sm text-pm-text-primary">
-                {new Date(rec.resolvedAt).toLocaleDateString()}
+                {shortDate(rec.resolvedAt)}
               </div>
             </>
           )}
@@ -218,7 +219,7 @@ export default async function RecommendationDetailPage({
                 ${rec.priceAtCreation.toFixed(2)}
               </div>
               <div className="text-xs text-pm-muted">
-                {new Date(rec.createdAt).toLocaleDateString()}
+                {shortDate(rec.createdAt)}
               </div>
             </div>
             {isResolved && rec.priceAtResolution !== null ? (
@@ -228,9 +229,7 @@ export default async function RecommendationDetailPage({
                   ${rec.priceAtResolution.toFixed(2)}
                 </div>
                 <div className="text-xs text-pm-muted">
-                  {rec.resolvedAt
-                    ? new Date(rec.resolvedAt).toLocaleDateString()
-                    : ""}
+                  {rec.resolvedAt ? shortDate(rec.resolvedAt) : ""}
                 </div>
               </div>
             ) : rec.ticker ? (
@@ -490,7 +489,7 @@ export default async function RecommendationDetailPage({
                 </div>
                 {news.publishedAt && (
                   <span className="ml-4 shrink-0 text-xs text-pm-muted">
-                    {new Date(news.publishedAt).toLocaleDateString()}
+                    {timeAgo(news.publishedAt)}
                   </span>
                 )}
               </div>
