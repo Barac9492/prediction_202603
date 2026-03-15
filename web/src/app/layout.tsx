@@ -18,20 +18,24 @@ export const metadata: Metadata = {
   description: "AI Investment Intelligence with Calibrated Predictions",
 };
 
+const hasClerkKeys =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_");
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <ClerkProvider>
-      <html lang="en">
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
-          {children}
-        </body>
-      </html>
-    </ClerkProvider>
+  const body = (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        {children}
+      </body>
+    </html>
   );
+
+  if (!hasClerkKeys) return body;
+  return <ClerkProvider>{body}</ClerkProvider>;
 }

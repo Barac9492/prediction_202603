@@ -214,8 +214,16 @@ export function RecommendationsLanding({
                     {rec.rationale}
                   </p>
 
-                  {/* Provenance */}
-                  <ProvenanceDrawer recId={rec.id} />
+                  {/* Actions */}
+                  <div className="flex items-center gap-3">
+                    <Link
+                      href={`/recommendations/${rec.id}`}
+                      className="text-xs font-medium text-pm-blue hover:underline"
+                    >
+                      View details &rarr;
+                    </Link>
+                    <ProvenanceDrawer recId={rec.id} />
+                  </div>
                 </div>
               );
             })}

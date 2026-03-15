@@ -18,6 +18,8 @@ import { listRecommendations } from "@/lib/db/graph-queries";
 import { CumulativeChart } from "@/components/cumulative-chart";
 import { HitRateChart } from "./hit-rate-chart";
 import { CalibrationCurve } from "@/app/(app)/track-record/calibration-curve";
+import { TradeLog } from "./trade-log";
+import { listTheses } from "@/lib/db/graph-queries";
 import { getWorkspaceId } from "@/lib/db/workspace";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +27,7 @@ export const dynamic = "force-dynamic";
 export default async function PerformancePage() {
   const workspaceId = await getWorkspaceId();
 
-  const [quintiles, actionReturns, cumReturns, worstMisses, rolling, allRecs, sharpe, drawdown, profitFactor, magnitude, calibration, brier, signals] =
+  const [quintiles, actionReturns, cumReturns, worstMisses, rolling, allRecs, sharpe, drawdown, profitFactor, magnitude, calibration, brier, signals, allTheses] =
     await Promise.all([
       getHitRateByConvictionQuintile(workspaceId),
       getReturnsByAction(workspaceId),
@@ -40,7 +42,11 @@ export default async function PerformancePage() {
       getProbabilityCalibration(workspaceId),
       getOverallBrierScore(workspaceId),
       getSignalQuality(workspaceId),
+      listTheses(workspaceId),
     ]);
+
+  // Build thesis lookup for trade log
+  const thesisLookup = new Map(allTheses.map((t) => [t.id, t]));
 
   const resolved = allRecs.filter((r) => r.status !== "active");
   const correct = resolved.filter(
@@ -290,6 +296,34 @@ export default async function PerformancePage() {
           <CumulativeChart data={cumReturns} />
         </div>
       </section>
+
+      {/* Trade Log */}
+      {resolved.length > 0 && (
+        <TradeLog
+          trades={resolved.map((rec) => {
+            const thesis = rec.thesisId ? thesisLookup.get(rec.thesisId) : null;
+            return {
+              id: rec.id,
+              action: rec.action,
+              asset: rec.asset,
+              ticker: rec.ticker,
+              conviction: rec.conviction,
+              rationale: rec.rationale,
+              status: rec.status,
+              outcomeNotes: rec.outcomeNotes,
+              brierScore: rec.brierScore,
+              priceAtCreation: rec.priceAtCreation,
+              priceAtResolution: rec.priceAtResolution,
+              actualReturn: rec.actualReturn,
+              createdAt: rec.createdAt.toISOString(),
+              resolvedAt: rec.resolvedAt?.toISOString() ?? null,
+              thesisId: rec.thesisId,
+              thesisTitle: thesis?.title ?? null,
+              thesisDirection: thesis?.direction ?? null,
+            };
+          })}
+        />
+      )}
 
       {/* Worst misses */}
       {worstMisses.length > 0 && (

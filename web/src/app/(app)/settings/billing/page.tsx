@@ -1,7 +1,19 @@
 "use client";
 
-import { useOrganization } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+
+// Conditionally load Clerk
+let useOrganization: () => { organization: unknown } = () => ({
+  organization: { id: "dev" },
+});
+try {
+  if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_")) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    useOrganization = require("@clerk/nextjs").useOrganization;
+  }
+} catch {
+  // Clerk not available
+}
 
 type WorkspacePlan = {
   plan: string;

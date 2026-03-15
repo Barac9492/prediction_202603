@@ -1,5 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -12,21 +12,30 @@ const isPublicRoute = createRouteMatcher([
   "/api/pipeline/run",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
-  const { userId, orgId } = await auth();
+const hasClerkKeys =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_");
 
-  // Redirect authenticated users from landing page to dashboard
-  if (userId && req.nextUrl.pathname === "/") {
-    if (!orgId) {
-      return NextResponse.redirect(new URL("/onboarding", req.url));
-    }
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
+function devMiddleware(_req: NextRequest) {
+  return NextResponse.next();
+}
 
-  if (!isPublicRoute(req)) {
-    await auth.protect();
-  }
-});
+export default hasClerkKeys
+  ? clerkMiddleware(async (auth, req) => {
+      const { userId, orgId } = await auth();
+
+      // Redirect authenticated users from landing page to dashboard
+      if (userId && req.nextUrl.pathname === "/") {
+        if (!orgId) {
+          return NextResponse.redirect(new URL("/onboarding", req.url));
+        }
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+
+      if (!isPublicRoute(req)) {
+        await auth.protect();
+      }
+    })
+  : devMiddleware;
 
 export const config = {
   matcher: [

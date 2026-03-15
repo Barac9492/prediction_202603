@@ -1,8 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CreateOrganization, useOrganization } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+
+// Conditionally load Clerk components
+let useOrganization: () => { organization: unknown } = () => ({
+  organization: { id: "dev" },
+});
+let CreateOrganization: React.ComponentType<{ afterCreateOrganizationUrl?: string; appearance?: unknown }> | null = null;
+
+try {
+  if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_")) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const clerk = require("@clerk/nextjs");
+    useOrganization = clerk.useOrganization;
+    CreateOrganization = clerk.CreateOrganization;
+  }
+} catch {
+  // Clerk not available
+}
 
 type Step = "create-workspace" | "create-thesis" | "run-pipeline";
 

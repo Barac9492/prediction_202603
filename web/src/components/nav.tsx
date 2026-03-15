@@ -2,7 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
+
+let ClerkComponents: {
+  UserButton: React.ComponentType;
+  OrganizationSwitcher: React.ComponentType<{ appearance?: unknown }>;
+} | null = null;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const clerk = require("@clerk/nextjs");
+  if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_")) {
+    ClerkComponents = {
+      UserButton: clerk.UserButton,
+      OrganizationSwitcher: clerk.OrganizationSwitcher,
+    };
+  }
+} catch {
+  // Clerk not available
+}
 
 const links = [
   { href: "/briefing", label: "Briefing" },
@@ -42,12 +59,18 @@ export function Nav() {
           >
             Settings
           </Link>
-          <OrganizationSwitcher
-            appearance={{
-              elements: { rootBox: "flex items-center" },
-            }}
-          />
-          <UserButton />
+          {ClerkComponents ? (
+            <>
+              <ClerkComponents.OrganizationSwitcher
+                appearance={{
+                  elements: { rootBox: "flex items-center" },
+                }}
+              />
+              <ClerkComponents.UserButton />
+            </>
+          ) : (
+            <span className="text-xs text-pm-muted">[Dev Mode]</span>
+          )}
         </div>
       </div>
     </nav>
