@@ -1,23 +1,11 @@
 import { db } from "@/lib/db";
 import { workspaces } from "@/lib/db/schema";
 
-const hasClerkKeys =
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_");
-
 /**
- * Resolve the current workspace ID from Clerk's organization context.
- * Falls back to "test-workspace" when Clerk is not configured.
+ * Returns the hardcoded workspace ID (single-user app).
  */
 export async function getWorkspaceId(): Promise<string> {
-  if (!hasClerkKeys) {
-    return "test-workspace";
-  }
-  const { auth } = await import("@clerk/nextjs/server");
-  const { orgId } = await auth();
-  if (!orgId) {
-    throw new Error("No workspace selected. Please select an organization.");
-  }
-  return orgId;
+  return "test-workspace";
 }
 
 /**

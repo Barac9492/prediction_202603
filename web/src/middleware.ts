@@ -1,47 +1,12 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-const isPublicRoute = createRouteMatcher([
-  "/",
-  "/pricing",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/api/webhooks(.*)",
-  "/api/prices/current",
-  "/api/cron",
-  "/api/pipeline/run",
-]);
-
-const hasClerkKeys =
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_");
-
-function devMiddleware(_req: NextRequest) {
+export default function middleware() {
   return NextResponse.next();
 }
 
-export default hasClerkKeys
-  ? clerkMiddleware(async (auth, req) => {
-      const { userId, orgId } = await auth();
-
-      // Redirect authenticated users from landing page to dashboard
-      if (userId && req.nextUrl.pathname === "/") {
-        if (!orgId) {
-          return NextResponse.redirect(new URL("/onboarding", req.url));
-        }
-        return NextResponse.redirect(new URL("/dashboard", req.url));
-      }
-
-      if (!isPublicRoute(req)) {
-        await auth.protect();
-      }
-    })
-  : devMiddleware;
-
 export const config = {
   matcher: [
-    // Skip Next.js internals and static files
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
     "/(api|trpc)(.*)",
   ],
 };
