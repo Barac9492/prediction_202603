@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { snapshotAllProbabilities } from "@/lib/db/probability";
 import { getAllWorkspaceIds } from "@/lib/db/workspace";
+import { ingestVault } from "@/lib/core/vault-ingest";
+import { fetchFeeds } from "@/lib/core/feed-fetch";
+import { ingestNews } from "@/lib/core/feed-ingest";
+import { fetchMarkets } from "@/lib/core/markets-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
  * POST /api/pipeline/run
- * Full pipeline: fetch RSS → LLM ingest → fetch markets → snapshot probabilities.
+ * Full pipeline: vault ingest → fetch RSS → LLM ingest → fetch markets → snapshot probabilities → fusion → recs.
  * Protected by CRON_SECRET env var.
  */
 export async function POST(req: NextRequest) {
@@ -28,41 +32,28 @@ export async function POST(req: NextRequest) {
 
     // Step 0: Ingest Obsidian vault notes
     try {
-      const { POST: ingestVault } = await import("@/app/api/vault/ingest/route");
-      const vaultRes = await ingestVault();
-      steps.vaultIngest = await vaultRes.json();
+      steps.vaultIngest = await ingestVault(workspaceId);
     } catch (err) {
       steps.vaultIngest = { error: String(err) };
     }
 
     // Step 1: Fetch RSS feeds
     try {
-      const { POST: fetchFeeds } = await import("@/app/api/feed/fetch/route");
-      const feedRes = await fetchFeeds();
-      steps.feedFetch = await feedRes.json();
+      steps.feedFetch = await fetchFeeds(workspaceId);
     } catch (err) {
       steps.feedFetch = { error: String(err) };
     }
 
     // Step 2: LLM ingest unprocessed events
     try {
-      const { POST: ingestFeeds } = await import("@/app/api/feed/ingest/route");
-      const ingestReq = new Request("http://localhost/api/feed/ingest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 20 }),
-      });
-      const ingestRes = await ingestFeeds(ingestReq as NextRequest);
-      steps.feedIngest = await ingestRes.json();
+      steps.feedIngest = await ingestNews(workspaceId, 20);
     } catch (err) {
       steps.feedIngest = { error: String(err) };
     }
 
     // Step 3: Fetch Polymarket data
     try {
-      const { POST: fetchMarkets } = await import("@/app/api/markets/fetch/route");
-      const marketRes = await fetchMarkets();
-      steps.marketFetch = await marketRes.json();
+      steps.marketFetch = await fetchMarkets(workspaceId);
     } catch (err) {
       steps.marketFetch = { error: String(err) };
     }

@@ -11,13 +11,27 @@ export class PlanLimitError extends Error {
 
 export async function requireActivePlan(workspaceId: string) {
   const [ws] = await db
-    .select({ plan: workspaces.plan })
+    .select({
+      plan: workspaces.plan,
+      trialExpiresAt: workspaces.trialExpiresAt,
+    })
     .from(workspaces)
     .where(eq(workspaces.id, workspaceId));
 
   if (!ws || ws.plan === "expired") {
     throw new PlanLimitError(
       "Your subscription has expired. Please upgrade to continue."
+    );
+  }
+
+  // Auto-expire trials past their expiry date
+  if (ws.plan === "trial" && ws.trialExpiresAt && ws.trialExpiresAt < new Date()) {
+    await db
+      .update(workspaces)
+      .set({ plan: "expired" })
+      .where(eq(workspaces.id, workspaceId));
+    throw new PlanLimitError(
+      "Your free trial has expired. Please upgrade to continue."
     );
   }
 }

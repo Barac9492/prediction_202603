@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CreateOrganization, useOrganization } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
@@ -60,9 +60,11 @@ export default function OnboardingPage() {
     );
   }
 
-  if (step === "create-workspace" && organization) {
-    setStep("create-thesis");
-  }
+  useEffect(() => {
+    if (step === "create-workspace" && organization) {
+      setStep("create-thesis");
+    }
+  }, [step, organization]);
 
   if (step === "create-thesis") {
     return (

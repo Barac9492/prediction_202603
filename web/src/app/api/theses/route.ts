@@ -6,6 +6,7 @@ import {
     updateThesis,
 } from "@/lib/db/graph-queries";
 import { getWorkspaceId } from "@/lib/db/workspace";
+import { requireActivePlan, checkThesisLimit, PlanLimitError } from "@/lib/guards";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,17 @@ export async function GET(req: NextRequest) {
 /** POST /api/theses - create a new thesis */
 export async function POST(req: NextRequest) {
     const workspaceId = await getWorkspaceId();
+
+    try {
+      await requireActivePlan(workspaceId);
+      await checkThesisLimit(workspaceId);
+    } catch (err) {
+      if (err instanceof PlanLimitError) {
+        return NextResponse.json({ error: err.message }, { status: 403 });
+      }
+      throw err;
+    }
+
     const body = await req.json();
     const { title, description, direction, domain, tags, deadline, resolutionCriteria } = body;
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 
 const links = [
   { href: "/briefing", label: "Briefing" },
@@ -33,6 +34,20 @@ export function Nav() {
               {label}
             </Link>
           ))}
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          <Link
+            href="/settings/billing"
+            className="text-sm text-pm-muted hover:text-pm-text-primary transition-colors"
+          >
+            Settings
+          </Link>
+          <OrganizationSwitcher
+            appearance={{
+              elements: { rootBox: "flex items-center" },
+            }}
+          />
+          <UserButton />
         </div>
       </div>
     </nav>

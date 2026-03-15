@@ -42,6 +42,7 @@ export async function POST(req: Request) {
       await db.insert(workspaces).values({
         id,
         name: name ?? "Untitled Workspace",
+        trialExpiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       });
       break;
     }

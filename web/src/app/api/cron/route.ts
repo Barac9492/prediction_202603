@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { workspaces } from "@/lib/db/schema";
 import { snapshotAllProbabilities } from "@/lib/db/probability";
+import { fetchFeeds } from "@/lib/core/feed-fetch";
+import { ingestNews } from "@/lib/core/feed-ingest";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -27,18 +29,15 @@ export async function GET(req: NextRequest) {
   }
 
   const allWorkspaces = await db.select().from(workspaces);
-  const baseUrl = req.nextUrl.origin;
   const results: Record<string, unknown>[] = [];
 
   for (const workspace of allWorkspaces) {
     const workspaceId = workspace.id;
     const log: Record<string, unknown>[] = [];
 
-    // Step 1: Fetch RSS feeds (calls the endpoint which now requires auth;
-    // invoke directly instead)
+    // Step 1: Fetch RSS feeds
     try {
-      const fetchRes = await fetch(`${baseUrl}/api/feed/fetch`, { method: "POST" });
-      const fetchData = await fetchRes.json();
+      const fetchData = await fetchFeeds(workspaceId);
       log.push({ step: "fetch", ...fetchData });
     } catch (err) {
       log.push({ step: "fetch", error: String(err) });
@@ -46,12 +45,7 @@ export async function GET(req: NextRequest) {
 
     // Step 2: Process unprocessed events (up to 20 per run)
     try {
-      const ingestRes = await fetch(`${baseUrl}/api/feed/ingest`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 20 }),
-      });
-      const ingestData = await ingestRes.json();
+      const ingestData = await ingestNews(workspaceId, 20);
       log.push({ step: "ingest", ...ingestData });
     } catch (err) {
       log.push({ step: "ingest", error: String(err) });

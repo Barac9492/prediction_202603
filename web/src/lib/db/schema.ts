@@ -8,6 +8,7 @@ import {
   timestamp,
   boolean,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // — workspace management ——————————————————————————————————————————
@@ -21,6 +22,7 @@ export const workspaces = pgTable("workspaces", {
   seatLimit: integer("seat_limit").notNull().default(3),
   thesisLimit: integer("thesis_limit").notNull().default(25),
   pipelineRunsPerDay: integer("pipeline_runs_per_day").notNull().default(4),
+  trialExpiresAt: timestamp("trial_expires_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -120,7 +122,7 @@ export const entities = pgTable(
   (t) => [
     index("entities_name_idx").on(t.name),
     index("entities_ws_idx").on(t.workspaceId),
-    index("entities_ws_name_idx").on(t.workspaceId, t.name),
+    uniqueIndex("entities_ws_name_uniq").on(t.workspaceId, t.name),
   ]
 );
 

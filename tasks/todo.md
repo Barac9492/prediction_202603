@@ -1,46 +1,38 @@
-# SaaS Foundation - Task Tracking
+# Fix 9 Critical Issues for Paying Users
 
-## Phase 1: Schema + Multi-Tenancy
-- [x] 1a. Add workspaceId to all 13 core tables in schema.ts
-- [x] 1b. Add workspace management tables (workspaces, workspaceMembers)
-- [x] 1c. Create workspace.ts helper (getWorkspaceId, getAllWorkspaceIds)
-- [x] 1d. Retrofit graph-queries.ts with workspaceId (49 functions)
-- [x] 1e. Retrofit queries.ts with workspaceId (6 functions)
-- [x] 1f. Retrofit probability.ts with workspaceId (6 functions)
-- [x] 1g. Retrofit scoring.ts with workspaceId (5 functions)
-- [x] 1h. Retrofit performance.ts with workspaceId (10 functions)
-- [x] 1i. Retrofit source-credibility.ts with workspaceId
-- [x] 1j. Update all 30 API routes with workspaceId resolution
-- [x] 1k. Update 7 intermediate lib files (backtest, recommendations, analysis, actions)
-- [x] 1l. Update 10 server component pages
-- [x] 1m. Generate drizzle migration (production-safe with backfill)
+## Phase 1: Schema + Migration (Issues 7, 9)
+- [x] Add trialExpiresAt to workspaces table
+- [x] Add uniqueIndex on entities(workspaceId, name)
+- [x] Generate drizzle migration (0003_hot_king_cobra.sql)
 
-## Phase 2: Clerk Auth
-- [x] 2a. Install @clerk/nextjs
-- [x] 2b. Create middleware.ts with route protection + redirect logic
-- [x] 2c. Wrap layout in ClerkProvider
-- [x] 2d. Create sign-in/sign-up pages
-- [x] 2e. Create Clerk webhook route (org.created, membership.created/deleted)
-- [x] 2f. Route groups: (marketing), (app), (auth)
+## Phase 2: Middleware (Issue 4)
+- [x] Add /api/cron and /api/pipeline/run to public routes
 
-## Phase 3: Paddle Billing
-- [x] 3a. Install @paddle/paddle-node-sdk
-- [x] 3b. Create billing.ts (plan limits, workspace plan management)
-- [x] 3c. Create guards.ts (plan enforcement: thesis, seat limits)
-- [x] 3d. Create Paddle webhook route
-- [x] 3e. Create billing settings page
+## Phase 3: Extract Core Logic (Issue 5)
+- [x] Create feed-fetch.ts, feed-ingest.ts, markets-fetch.ts, vault-ingest.ts
+- [x] Slim down 4 route files to thin wrappers
+- [x] Update cron route to use direct function calls
+- [x] Update pipeline/run route to use direct imports
 
-## Phase 4: Landing Page + Onboarding
-- [x] 4a. Marketing landing page with hero, features, pricing
-- [x] 4b. Onboarding flow (create org → create thesis → run pipeline)
+## Phase 4: Billing APIs (Issue 1)
+- [x] Create /api/billing/current route
+- [x] Create /api/billing/checkout route
+
+## Phase 5: Guard Enforcement (Issue 3)
+- [x] Add guard calls to POST /api/theses
+
+## Phase 6: Trial Expiry (Issue 7 continued)
+- [x] Update requireActivePlan() with trialExpiresAt check
+- [x] Set trialExpiresAt in clerk webhook org.created handler
+
+## Phase 7: Paddle Webhook Security (Issue 6)
+- [x] Add HMAC-SHA256 signature verification
+
+## Phase 8: Onboarding Bug (Issue 8)
+- [x] Wrap step transition in useEffect
+
+## Phase 9: Nav User Controls (Issue 2)
+- [x] Add UserButton, OrganizationSwitcher, Settings link
 
 ## Verification
-- [x] npx next build passes cleanly
-- [ ] Deploy and test end-to-end flow
-- [ ] Add env vars: CLERK_*, PADDLE_*, CRON_SECRET
-
-## Review
-- Build passes with 0 errors
-- 60+ files modified/created across all phases
-- Production-safe migration with ws_default backfill
-- Paddle chosen over Stripe (merchant of record, handles tax/compliance)
+- [x] npx next build passes (0 errors, all 19 static + dynamic routes)

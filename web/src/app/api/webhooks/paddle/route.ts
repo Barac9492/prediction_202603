@@ -1,5 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
 import { updateWorkspacePlan } from "@/lib/billing";
+
+function verifyPaddleSignature(
+  rawBody: string,
+  signatureHeader: string,
+  secret: string
+): boolean {
+  // Header format: ts=TIMESTAMP;h1=HASH
+  const parts = Object.fromEntries(
+    signatureHeader.split(";").map((p) => {
+      const [k, ...v] = p.split("=");
+      return [k, v.join("=")];
+    })
+  );
+
+  const ts = parts.ts;
+  const h1 = parts.h1;
+  if (!ts || !h1) return false;
+
+  const payload = `${ts}:${rawBody}`;
+  const computed = createHmac("sha256", secret).update(payload).digest("hex");
+
+  try {
+    return timingSafeEqual(Buffer.from(computed), Buffer.from(h1));
+  } catch {
+    return false;
+  }
+}
 
 // Paddle webhook handler
 // Verifies webhook signature and processes subscription events
@@ -12,9 +40,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // TODO: Verify Paddle webhook signature using PADDLE_WEBHOOK_SECRET
-  // For now, check a shared secret header
-  const body = await req.json();
+  const rawBody = await req.text();
+  const signatureHeader = req.headers.get("paddle-signature") ?? "";
+
+  if (!verifyPaddleSignature(rawBody, signatureHeader, PADDLE_WEBHOOK_SECRET)) {
+    return NextResponse.json(
+      { error: "Invalid signature" },
+      { status: 401 }
+    );
+  }
+
+  const body = JSON.parse(rawBody);
   const eventType = body.event_type;
   const data = body.data;
 
