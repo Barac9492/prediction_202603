@@ -129,21 +129,22 @@ export async function listNewsEvents(workspaceId: string, {
   unprocessedOnly = false,
   aiRelevanceMin,
 }: { limit?: number; unprocessedOnly?: boolean; aiRelevanceMin?: number } = {}) {
+  const orderCol = desc(newsEvents.publishedAt);
   if (unprocessedOnly && aiRelevanceMin !== undefined) {
     return db.select().from(newsEvents)
       .where(and(eq(newsEvents.workspaceId, workspaceId), eq(newsEvents.processed, false), sql`${newsEvents.aiRelevance} > ${aiRelevanceMin - 1}`))
-      .orderBy(desc(newsEvents.ingestedAt)).limit(limit);
+      .orderBy(orderCol).limit(limit);
   }
   if (unprocessedOnly) {
     return db.select().from(newsEvents).where(and(eq(newsEvents.workspaceId, workspaceId), eq(newsEvents.processed, false)))
-      .orderBy(desc(newsEvents.ingestedAt)).limit(limit);
+      .orderBy(orderCol).limit(limit);
   }
   if (aiRelevanceMin !== undefined) {
     return db.select().from(newsEvents)
       .where(and(eq(newsEvents.workspaceId, workspaceId), sql`${newsEvents.aiRelevance} > ${aiRelevanceMin - 1}`))
-      .orderBy(desc(newsEvents.ingestedAt)).limit(limit);
+      .orderBy(orderCol).limit(limit);
   }
-  return db.select().from(newsEvents).where(eq(newsEvents.workspaceId, workspaceId)).orderBy(desc(newsEvents.ingestedAt)).limit(limit);
+  return db.select().from(newsEvents).where(eq(newsEvents.workspaceId, workspaceId)).orderBy(orderCol).limit(limit);
 }
 
 export async function markNewsProcessed(
