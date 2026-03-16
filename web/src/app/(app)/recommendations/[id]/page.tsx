@@ -81,7 +81,7 @@ export default async function RecommendationDetailPage({
     <div className="space-y-6">
       {/* Back link */}
       <Link
-        href="/recommendations"
+        href="/"
         className="text-sm text-pm-blue hover:underline"
       >
         &larr; All Recommendations
